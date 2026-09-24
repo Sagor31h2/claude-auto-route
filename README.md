@@ -23,6 +23,24 @@ Examples:
 
 Claude Code reads effort only from an agent's frontmatter, so the plugin ships four agents (`effort-low` to `effort-xhigh`), each with a fixed effort and `model: inherit`. The skill chooses one of them and passes the model per call, which gives 12 combinations.
 
+## Phases
+
+Tasks are sorted into a phase first — Plan, Research, Implement, Debug, Review:
+
+| Phase | Default route |
+|---|---|
+| Plan | `opus` + `effort-high` (`effort-xhigh` for architecture or migrations) |
+| Research | `haiku` or `sonnet` + `effort-low`/`effort-medium` |
+| Implement | Rubric |
+| Debug | `sonnet` or `opus` + `effort-high`/`effort-xhigh` |
+| Review | `sonnet` + `effort-high` |
+
+For multi-step work, a strong model (opus + high) writes a short plan once, each step then runs on its own cheaper route, and results of earlier steps are passed to later ones. In Claude Code plan mode, it stops after the plan for your approval.
+
+### Planning in the main session
+
+If you plan in the main session with Claude Code's plan mode, `/model opusplan` uses Opus while planning and Sonnet while executing. It works alongside auto-route: opusplan covers the main session, auto-route covers delegated work.
+
 ## Why subagents, not session effort
 
 - Claude Code can change the main session's effort (`/effort`, the `effortLevel` setting), but doing it per prompt is costly: effort is part of the prompt cache key, so every switch makes the next turn re-read the whole conversation at full, uncached price.

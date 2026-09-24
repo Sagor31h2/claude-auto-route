@@ -27,6 +27,27 @@ Answer inline when:
 - It is a pure chat question needing no tools.
 - The task is tiny and depends on context already in this conversation, so re-explaining it to a fresh agent costs more than doing it.
 
+### Phases
+
+Pick the phase first, then use the Rubric for anything the phase leaves open.
+
+| Phase | When | Default route | Notes |
+|---|---|---|---|
+| Plan | Multi-step task, 3+ files, or unclear approach | `opus` + `effort-high` (`effort-xhigh` for architecture or migrations) | Read-only. Returns the plan format below. |
+| Research | Find code, explain behavior, gather facts | `haiku` or `sonnet` + `effort-low`/`effort-medium` | Read-only. Findings with file:line. |
+| Implement | A concrete change | Rubric | One plan step per delegation. |
+| Debug | Unknown cause, flaky or intermittent failure | `sonnet` or `opus` + `effort-high`/`effort-xhigh` | Find the root cause before fixing. |
+| Review | After a risky or multi-file change | `sonnet` + `effort-high` | Read-only. Report problems only. |
+
+Plan format the planner must return: 3-5 coarse steps; each step lists What, Files, Depends on, Done when, and Route (model + effort).
+
+Executing a plan:
+- If the session is in Claude Code plan mode, stop after the plan and present it for approval. Execute only after approval.
+- Otherwise show the plan in a few lines, then route each step using its suggested route (adjust if it's clearly wrong).
+- Carry results forward: put what earlier steps changed (files, new interfaces, key decisions) into the next step's handoff Context, because each subagent starts blank.
+- Run steps in parallel only when they don't depend on each other and touch disjoint files; otherwise run them in order.
+- After the last step of a risky or multi-file plan, run a Review.
+
 ### Rubric
 
 Score the task on two separate axes, then delegate with the Agent tool: `subagent_type` = the effort agent, `model` = the chosen model. Always pass `model`. Pass the full task and all context; the agent starts fresh.
@@ -58,6 +79,8 @@ Context: <file paths, relevant snippets, decisions made, what was ruled out>
 Constraints: <what not to touch, style rules>
 Done when: <the concrete check or deliverable>
 ```
+
+For read-only phases (Plan, Research, Review), start the prompt with: Read-only: do not modify files.
 
 ### Rules
 
