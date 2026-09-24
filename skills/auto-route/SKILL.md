@@ -1,6 +1,6 @@
 ---
 name: auto-route
-description: Auto-pick model and reasoning effort for a task, independently, by delegating to an effort-level subagent with a per-call model. Also toggles always-on routing. Use when the user says "auto-route", "auto model", "pick the model", or invokes /auto-route:auto-route [on|off|status|<task>].
+description: Pick model and reasoning effort per task and delegate to a matching subagent; also toggles always-on routing. Use for /auto-route:auto-route [on|off|status|<task>] or when asked to auto-route or pick the model.
 ---
 
 ## Toggle

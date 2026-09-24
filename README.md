@@ -23,6 +23,12 @@ Examples:
 
 Claude Code reads effort only from an agent's frontmatter, so the plugin ships four agents (`effort-low` to `effort-xhigh`), each with a fixed effort and `model: inherit`. The skill chooses one of them and passes the model per call, which gives 12 combinations.
 
+## Why subagents, not session effort
+
+- Claude Code can change the main session's effort (`/effort`, the `effortLevel` setting), but doing it per prompt is costly: effort is part of the prompt cache key, so every switch makes the next turn re-read the whole conversation at full, uncached price.
+- The `effortLevel` setting is only re-read live from the global `~/.claude/settings.json`, so a hook that rewrites it on every prompt also changes effort for every other open session (see anthropics/claude-code [issue #95347](https://github.com/anthropics/claude-code/issues/95347)).
+- A subagent starts its own context, so choosing its model and effort per task costs nothing extra in cache terms and doesn't touch the main session or other sessions.
+
 ## Install
 
 ```
@@ -50,7 +56,7 @@ Always-on mode is a `UserPromptSubmit` hook that checks for the flag file `~/.cl
 
 ## Limitations
 
-- Your main session's model and effort don't change. Claude Code can't switch them mid-session, so only the delegated work runs on the chosen combination.
+- Your main session keeps its own model and effort; only the delegated work runs on the chosen combination (see Why subagents, not session effort).
 - The main session still spends some tokens choosing the route and relaying the result.
 - `max` effort isn't included. Add an `agents/effort-max.md` if you need it.
 
