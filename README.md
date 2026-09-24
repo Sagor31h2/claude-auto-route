@@ -64,6 +64,7 @@ Restart Claude Code after installing.
 | `/auto-route:auto-route on` | Route every prompt automatically |
 | `/auto-route:auto-route off` | Back to manual (default) |
 | `/auto-route:auto-route status` | Show whether always-on routing is enabled |
+| `/auto-route:auto-route stats` | Show runs, tokens and average duration per route |
 
 Before delegating, Claude prints the choice in one line, e.g. `Route: sonnet + high (unknown-cause bug in known file)`.
 
@@ -71,6 +72,10 @@ Routing rules:
 - Claude answers inline instead of delegating for pure chat and for tiny tasks that depend on context already in the conversation.
 
 Always-on mode is a `UserPromptSubmit` hook that checks for the flag file `~/.claude/auto-route.on` (or under `$CLAUDE_CONFIG_DIR` if set). You can also toggle it with `touch` or `rm` on that file.
+
+## Stats
+
+Each routed call appends one line to `~/.claude/auto-route.log` (or under `$CLAUDE_CONFIG_DIR`) with the time, model, effort, resolved model, tokens and duration, and no prompt or task text. The stats command summarizes it per route. Token and duration fields come from Claude Code's Agent tool response and can be empty for background or failed calls. Logging needs `jq` (without it nothing is logged); delete the file to reset. Hooks run through bash (on Windows, Git Bash).
 
 ## Limitations
 

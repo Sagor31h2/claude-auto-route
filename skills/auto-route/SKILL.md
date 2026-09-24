@@ -1,21 +1,26 @@
 ---
 name: auto-route
-description: Pick model and reasoning effort per task and delegate to a matching subagent; also toggles always-on routing. Use for /auto-route:auto-route [on|off|status|<task>] or when asked to auto-route or pick the model.
+description: Pick model and reasoning effort per task and delegate to a matching subagent; also toggles always-on routing. Use for /auto-route:auto-route [on|off|status|stats|<task>] or when asked to auto-route or pick the model.
 ---
 
-## Toggle
+## Commands
 
 Argument: `$ARGUMENTS`
 
-Trim the argument and match case-insensitively (`on`, `off`, `status`). If it matches, handle it here and stop; anything else is treated as a task. Only do this when the user typed it; never toggle on your own.
+Trim the argument and match case-insensitively (`on`, `off`, `status`, or `stats`). If it matches, handle it here and stop; anything else is treated as a task. Only do this when the user typed it; never toggle on your own.
 
 - `on`: run `touch "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/auto-route.on"`
 - `off`: run `rm -f "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/auto-route.on"`
 - `status`: change nothing
+- `stats`: run the snippet below and reply with a compact table (route, runs, tokens, average seconds), or the no-calls message:
+```bash
+f="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/auto-route.log"
+[ -s "$f" ] && jq -rs 'group_by("\(.model) + \(.effort)") | map("\(.[0].model) + \(.[0].effort)\t\(length) runs\t\(map(.tokens // 0) | add) tokens\t\((map(.duration_ms // 0) | add) / length / 1000 | round)s avg") | .[]' "$f" || echo "No routed calls logged yet."
+```
 
-Then run `[ -f "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/auto-route.on" ] && echo ON || echo OFF` and reply with one line: `Auto-route: ON` or `Auto-route: OFF`.
+For `on`, `off`, and `status`: run `[ -f "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/auto-route.on" ] && echo ON || echo OFF` and reply with one line: `Auto-route: ON` or `Auto-route: OFF`.
 
-While the flag file exists, this plugin's UserPromptSubmit hook asks Claude to route every prompt through this skill.
+While the flag file exists, this plugin's UserPromptSubmit hook asks Claude to route every prompt through this skill. A PostToolUse hook logs each routed call (time, model, effort, resolved model, tokens, duration; no prompt or task text) to auto-route.log in the same directory.
 
 ## Route
 
