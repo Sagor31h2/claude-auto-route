@@ -16,9 +16,10 @@ Examples:
 | Task | Route |
 |---|---|
 | Fix a typo | `haiku` + `low` |
+| Find where a function is defined | `haiku` + `low` |
 | Add a feature in a known file | `sonnet` + `medium` |
 | Small but subtle race condition | `sonnet` + `xhigh` |
-| Large but mechanical migration | `opus` + `low` |
+| Large but mechanical rename across many files | `sonnet` + `low` |
 
 Claude Code reads effort only from an agent's frontmatter, so the plugin ships four agents (`effort-low` to `effort-xhigh`), each with a fixed effort and `model: inherit`. The skill chooses one of them and passes the model per call, which gives 12 combinations.
 
@@ -40,9 +41,12 @@ Restart Claude Code after installing.
 | `/auto-route:auto-route off` | Back to manual (default) |
 | `/auto-route:auto-route status` | Show whether always-on routing is enabled |
 
-Before delegating, Claude prints the choice in one line, e.g. `Route: sonnet + high (unknown-cause bug in known file)`. Pure chat questions are answered directly, without delegation.
+Before delegating, Claude prints the choice in one line, e.g. `Route: sonnet + high (unknown-cause bug in known file)`.
 
-Always-on mode is a `UserPromptSubmit` hook that checks for the flag file `~/.claude/auto-route.on`. You can also toggle it with `touch` or `rm` on that file.
+Routing rules:
+- Claude answers inline instead of delegating for pure chat and for tiny tasks that depend on context already in the conversation.
+
+Always-on mode is a `UserPromptSubmit` hook that checks for the flag file `~/.claude/auto-route.on` (or under `$CLAUDE_CONFIG_DIR` if set). You can also toggle it with `touch` or `rm` on that file.
 
 ## Limitations
 

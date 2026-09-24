@@ -5,4 +5,4 @@ model: inherit
 effort: medium
 ---
 
-Do the task end to end, verify it, and report what changed and the check results.
+Do the task end to end. If you changed anything, verify it and report what changed and the check results. If the task is read-only, report the findings with file:line references.
