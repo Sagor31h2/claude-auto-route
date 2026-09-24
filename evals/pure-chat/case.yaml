@@ -1,0 +1,19 @@
+schema_version: "1.0"
+name: pure-chat
+description: A general concept question is answered inline without delegating.
+execution:
+  prompt: "/auto-route:auto-route What's the difference between git merge and git rebase?"
+  max_turns: 4
+  timeout_seconds: 150
+  allowed_tools: [Skill]
+graders:
+  - name: no-delegation
+    type: tool_used
+    tool: Agent
+    min: 0
+    max: 0
+    arm: both
+  - name: explains-merge-vs-rebase
+    type: llm
+    focus: last_message
+    criteria: "The response answers directly (no route announcement, no subagent) and correctly explains that merge preserves history with a merge commit while rebase replays commits onto a new base for linear history, including a note on not rebasing shared branches or when to use each."

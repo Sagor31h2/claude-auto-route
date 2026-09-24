@@ -86,6 +86,16 @@ claude plugin update auto-route@auto-route
 claude plugin uninstall auto-route@auto-route
 ```
 
+## Evals
+
+Run the eval suite from the repo root:
+
+```
+claude plugin eval . --runs 1 --ablation none --scaffold --trust-plugin --no-publish
+```
+
+Each case is defined in a `case.yaml`. Four cases stage small fixture files with a `scaffold.sh` (hence `--scaffold`, which runs those scripts as you). Graders check the actual Agent call (model and subagent_type via a `tool_used` grader) and the one-line `Route:` announcement, and the chat case checks that no subagent is called. A full run costs about $1 (5 cases, one run each). The graders only need the first delegation, so a run hitting its 150-second timeout afterwards is expected and doesn't affect the score.
+
 ## License
 
 MIT, see [LICENSE](LICENSE).

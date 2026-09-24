@@ -88,4 +88,5 @@ For read-only phases (Plan, Research, Review), start the prompt with: Read-only:
 - Pure chat question answerable without tools: answer inline, no delegation.
 - Independent parts of different difficulty: route each separately, in parallel.
 - Before delegating, tell the user in one line, e.g. `Route: sonnet + high (unknown-cause bug in known file)`.
-- After the agent returns, relay the result briefly. If it failed or was unsure, retry once raising whichever axis caused the failure.
+- After the agent returns, relay the result briefly.
+- Retry once, raising the axis that fell short, only for capability failures (wrong or incomplete result, the agent gave up or was unsure). Don't retry permission denials, missing files, or tool and environment errors; a stronger model can't fix those, so report the blocker to the user instead.

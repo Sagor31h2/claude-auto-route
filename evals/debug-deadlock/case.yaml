@@ -1,0 +1,20 @@
+schema_version: "1.0"
+name: debug-deadlock
+description: An intermittent deadlock is a Debug-phase task on sonnet/opus with high or xhigh effort.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/auto-route:auto-route Our worker pool in worker_pool.py deadlocks intermittently under load, maybe once a day. Find the cause and fix it."
+  max_turns: 4
+  timeout_seconds: 150
+  allowed_tools: [Skill]
+graders:
+  - name: agent-call-strong-high
+    type: tool_used
+    tool: Agent
+    input_match: '^(?=[\s\S]*"model"\s*:\s*"(sonnet|opus)")(?=[\s\S]*auto-route:effort-(high|xhigh))'
+  - name: announces-route
+    type: regex
+    target: trace
+    pattern: 'Route:\W*(sonnet|opus)\W*\+\W*(effort-)?x?high'
+    flags: i

@@ -1,0 +1,20 @@
+schema_version: "1.0"
+name: plan-multistep
+description: A multi-part feature is planned first on opus with high or xhigh effort, read-only.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/auto-route:auto-route Add JWT authentication to the app: a users table migration, login and refresh endpoints in the API, and a login page in the frontend."
+  max_turns: 6
+  timeout_seconds: 150
+  allowed_tools: [Skill]
+graders:
+  - name: planner-call-opus-high-readonly
+    type: tool_used
+    tool: Agent
+    input_match: '^(?=[\s\S]*"model"\s*:\s*"opus")(?=[\s\S]*auto-route:effort-(high|xhigh))(?=[\s\S]*[Rr]ead-only)'
+  - name: announces-route
+    type: regex
+    target: trace
+    pattern: 'Route:\W*opus\W*\+\W*(effort-)?x?high'
+    flags: i

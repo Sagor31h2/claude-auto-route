@@ -1,0 +1,20 @@
+schema_version: "1.0"
+name: research-lookup
+description: A code lookup is a read-only Research task on haiku/sonnet with low or medium effort.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/auto-route:auto-route Where is the retry logic for HTTP requests defined in this repo?"
+  max_turns: 4
+  timeout_seconds: 150
+  allowed_tools: [Skill]
+graders:
+  - name: agent-call-cheap-readonly
+    type: tool_used
+    tool: Agent
+    input_match: '^(?=[\s\S]*"model"\s*:\s*"(haiku|sonnet)")(?=[\s\S]*auto-route:effort-(low|medium))'
+  - name: announces-route
+    type: regex
+    target: trace
+    pattern: 'Route:\W*(haiku|sonnet)\W*\+\W*(effort-)?(low|medium)'
+    flags: i
