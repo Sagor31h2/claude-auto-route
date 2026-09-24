@@ -21,7 +21,7 @@ Examples:
 | Small but subtle race condition | `sonnet` + `xhigh` |
 | Large but mechanical rename across many files | `sonnet` + `low` |
 
-Claude Code reads effort only from an agent's frontmatter, so the plugin ships five effort agents (`effort-low` to `effort-max`), each with a fixed effort and `model: inherit`; the skill picks one and passes the model per call, giving 12 first-pick combinations plus `opus` + `max` as the last retry.
+Claude Code reads effort only from an agent's frontmatter, so the plugin ships five effort agents (called as `auto-route:effort-low` through `auto-route:effort-max`), each with a fixed effort and `model: inherit`; the skill picks one and passes the model per call, giving 12 first-pick combinations plus `opus` + `max` as the last retry.
 
 ### Why not fable
 
@@ -39,7 +39,7 @@ Tasks are sorted into a phase first — Plan, Research, Implement, Debug, Review
 | Debug | `sonnet` or `opus` + `effort-high`/`effort-xhigh` |
 | Review | `sonnet` + `effort-high` |
 
-For multi-step work, a strong model (opus + high) writes a short plan once, each step then runs on its own cheaper route, and results of earlier steps are passed to later ones. In Claude Code plan mode, it stops after the plan for your approval.
+For multi-step work, a strong model (opus + high) writes a short plan once, each step then runs on its own cheaper route, and results of earlier steps are passed to later ones. In Claude Code plan mode, it stops after the plan for your approval. If a delegated run falls short on capability, the skill retries once, one step higher on the axis that fell short (effort up to `xhigh`, model up to `opus`, and `opus` + `max` only after `opus` + `xhigh`). Permission and environment errors are reported, not retried.
 
 ### Planning in the main session
 

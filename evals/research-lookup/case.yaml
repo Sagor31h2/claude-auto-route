@@ -12,9 +12,15 @@ graders:
   - name: agent-call-cheap-readonly
     type: tool_used
     tool: Agent
-    input_match: '^(?=[\s\S]*"model"\s*:\s*"(haiku|sonnet)")(?=[\s\S]*auto-route:effort-(low|medium))'
+    input_match: '^(?=[\s\S]*"model"\s*:\s*"(haiku|sonnet)")(?=[\s\S]*auto-route:effort-(low|medium))(?=[\s\S]*[Rr]ead-only)'
   - name: announces-route
     type: regex
     target: trace
     pattern: 'Route:\W*(haiku|sonnet)\W*\+\W*(effort-)?(low|medium)'
     flags: i
+  - name: no-fable
+    type: tool_used
+    tool: Agent
+    input_match: '"model"\s*:\s*"fable"'
+    min: 0
+    max: 0
