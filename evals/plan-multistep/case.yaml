@@ -18,3 +18,9 @@ graders:
     target: trace
     pattern: 'Route:\W*opus\W*\+\W*(effort-)?x?high'
     flags: i
+  - name: no-fable
+    type: tool_used
+    tool: Agent
+    input_match: '"model"\s*:\s*"fable"'
+    min: 0
+    max: 0

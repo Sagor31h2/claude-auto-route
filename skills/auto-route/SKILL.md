@@ -61,12 +61,14 @@ Score the task on two separate axes, then delegate with the Agent tool: `subagen
 - `haiku`: mechanical, well-specified, small scope (rename, format, lookup, run a command)
 - `sonnet`: normal engineering work (features, known-location bugs, tests, explanations)
 - `opus`: broad scope or hard judgment (architecture, many files, security, unfamiliar domain)
+- Never route to `fable`: it costs about 2.5x Opus, Opus matches or beats it on most tasks, and it doesn't accept per-turn effort, which the effort agents rely on.
 
 **Effort = how much step-by-step reasoning the task needs**
 - `auto-route:effort-low`: answer is obvious once the code is seen
 - `auto-route:effort-medium`: a few steps of reasoning
 - `auto-route:effort-high`: tracing logic, unknown cause, tricky edge cases
 - `auto-route:effort-xhigh`: concurrency, subtle correctness, proofs, long multi-step debugging
+- `auto-route:effort-max`: never a first pick. Only for the single retry after `opus` + `effort-xhigh` fell short, and only with `opus`.
 
 The axes are independent. Examples: large but mechanical rename across many files = `sonnet` + `effort-low`; find where a function is defined = `haiku` + `effort-low`; small but subtle race condition = `sonnet` + `effort-xhigh`; typo = `haiku` + `effort-low`.
 
@@ -94,4 +96,4 @@ For read-only phases (Plan, Research, Review), start the prompt with: Read-only:
 - Independent parts of different difficulty: route each separately, in parallel.
 - Before delegating, tell the user in one line, e.g. `Route: sonnet + high (unknown-cause bug in known file)`.
 - After the agent returns, relay the result briefly.
-- Retry once, raising the axis that fell short, only for capability failures (wrong or incomplete result, the agent gave up or was unsure). Don't retry permission denials, missing files, or tool and environment errors; a stronger model can't fix those, so report the blocker to the user instead.
+- Retry at most once, and only for capability failures (wrong or incomplete result, the agent gave up or was unsure). Raise the axis that fell short: reasoning fell short -> next effort level (up to `effort-xhigh`; `effort-max` only from `opus` + `effort-xhigh`); capability or knowledge fell short -> next model (up to `opus`). If there is no higher step or the retry also falls short, report to the user. Never retry permission denials, missing files, or tool and environment errors; report the blocker instead.

@@ -9,7 +9,7 @@ Each task is scored on two independent axes:
 | Axis | Options | Question it answers |
 |---|---|---|
 | Model | `haiku`, `sonnet`, `opus` | How much capability or knowledge does the task need? |
-| Effort | `low`, `medium`, `high`, `xhigh` | How much step-by-step reasoning does the task need? |
+| Effort | `low`, `medium`, `high`, `xhigh` (plus `max` as a last retry) | How much step-by-step reasoning does the task need? |
 
 Examples:
 
@@ -21,7 +21,11 @@ Examples:
 | Small but subtle race condition | `sonnet` + `xhigh` |
 | Large but mechanical rename across many files | `sonnet` + `low` |
 
-Claude Code reads effort only from an agent's frontmatter, so the plugin ships four agents (`effort-low` to `effort-xhigh`), each with a fixed effort and `model: inherit`. The skill chooses one of them and passes the model per call, which gives 12 combinations.
+Claude Code reads effort only from an agent's frontmatter, so the plugin ships five effort agents (`effort-low` to `effort-max`), each with a fixed effort and `model: inherit`; the skill picks one and passes the model per call, giving 12 first-pick combinations plus `opus` + `max` as the last retry.
+
+### Why not fable
+
+Claude Fable 5.1 costs $10/$50 per million input/output tokens against $4/$20 for Opus 5.5, Opus 5.5 matches or beats it on most benchmarks (for example Terminal-Bench 66.4% vs 55.8%), and Fable doesn't accept per-turn effort, which the effort agents rely on. Fable's strength is multi-hour unattended runs, which isn't what per-task routing is for. Sources as markdown links: [Pricing](https://platform.claude.com/docs/en/about-claude/pricing), [The Decoder: Opus 5.5 vs Fable 5.1](https://the-decoder.com/claude-opus-5-5-matches-fable-5-1-at-40-percent-lower-cost-as-anthropic-promises-to-fix-claudish-writing/), [Effort docs](https://platform.claude.com/docs/en/build-with-claude/effort).
 
 ## Phases
 
@@ -81,7 +85,6 @@ Each routed call appends one line to `~/.claude/auto-route.log` (or under `$CLAU
 
 - Your main session keeps its own model and effort; only the delegated work runs on the chosen combination (see Why subagents, not session effort).
 - The main session still spends some tokens choosing the route and relaying the result.
-- `max` effort isn't included. Add an `agents/effort-max.md` if you need it.
 
 ## Update and uninstall
 
