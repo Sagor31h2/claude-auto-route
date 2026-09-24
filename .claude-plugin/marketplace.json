@@ -1,0 +1,16 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "auto-route",
+  "description": "Auto-pick Claude model and reasoning effort per task.",
+  "owner": {
+    "name": "sagor"
+  },
+  "plugins": [
+    {
+      "name": "auto-route",
+      "description": "Auto-pick Claude model and reasoning effort per task by delegating to effort-level subagents.",
+      "source": "./",
+      "category": "productivity"
+    }
+  ]
+}
