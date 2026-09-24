@@ -1,6 +1,6 @@
 {
   "name": "auto-route",
-  "version": "1.7.0",
+  "version": "1.8.0",
   "description": "Auto-pick Claude model and reasoning effort per task by delegating to effort-level subagents. Optional always-on mode.",
   "author": {
     "name": "sagor"
@@ -11,7 +11,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "[ -f \"${CLAUDE_CONFIG_DIR:-$HOME/.claude}/auto-route.on\" ] && echo '{\"hookSpecificOutput\":{\"hookEventName\":\"UserPromptSubmit\",\"additionalContext\":\"AUTO-ROUTE ON: handle this prompt via the auto-route:auto-route skill. Pure chat questions may be answered inline.\"}}' || true",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/always-on.sh\"",
             "timeout": 5
           }
         ]

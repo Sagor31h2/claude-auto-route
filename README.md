@@ -75,7 +75,7 @@ Before delegating, Claude prints the choice in one line, e.g. `Route: sonnet + h
 Routing rules:
 - Claude answers inline instead of delegating for pure chat and for tiny tasks that depend on context already in the conversation.
 
-Always-on mode is a `UserPromptSubmit` hook that checks for the flag file `~/.claude/auto-route.on` (or under `$CLAUDE_CONFIG_DIR` if set). You can also toggle it with `touch` or `rm` on that file.
+Always-on mode is a `UserPromptSubmit` hook that checks for the flag file `~/.claude/auto-route.on` (or under `$CLAUDE_CONFIG_DIR` if set). You can also toggle it with `touch` or `rm` on that file. In always-on mode, slash commands and short replies like "ok", "yes, continue" or "looks good" aren't routed, since they depend on the conversation.
 
 ## Stats
 
