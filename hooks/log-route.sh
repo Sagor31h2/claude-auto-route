@@ -13,11 +13,13 @@ transcript=$(printf '%s' "$input" | jq -r '.agent_transcript_path // empty')
 effort="${agent_type#auto-route:effort-}"
 # ponytail: a message id repeats once per content block with growing usage; the last
 # occurrence per id is the final total (group_by is a stable sort, so map(.[-1]) keeps it).
+# tokens = the final turn's total (context size), matching Claude Code's own subagent count;
+# summing every turn would recount the cached context once per turn.
 line=$(jq -cs --arg effort "$effort" '
   ([.[] | .timestamp? // empty]) as $ts
   | ([.[] | select(.type=="assistant") | select(.message.usage != null)
-      | {id: .message.id, u: .message.usage, model: .message.model}]
-     | group_by(.id) | map(.[-1])) as $d
+      | {id: .message.id, ts: .timestamp, u: .message.usage, model: .message.model}]
+     | group_by(.id) | map(.[-1]) | sort_by(.ts)) as $d
   | (($d | last | .model) // null) as $rm
   | {
       ts: (now | todate),
@@ -29,9 +31,11 @@ line=$(jq -cs --arg effort "$effort" '
               else null end),
       effort: $effort,
       resolved_model: $rm,
-      tokens: (($d | map(.u.input_tokens + .u.output_tokens
-                         + (.u.cache_creation_input_tokens // 0)
-                         + (.u.cache_read_input_tokens // 0)) | add) // 0),
+      tokens: (($d | last | .u // null) as $u
+               | if $u == null then 0
+                 else $u.input_tokens + $u.output_tokens
+                      + ($u.cache_creation_input_tokens // 0)
+                      + ($u.cache_read_input_tokens // 0) end),
       duration_ms: (if ($ts | length) > 1
                     then ((($ts | max | sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601)
                            - ($ts | min | sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601)) * 1000)

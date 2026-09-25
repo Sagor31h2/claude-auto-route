@@ -35,7 +35,8 @@ cat > "$transcript" <<'EOF'
 EOF
 # msg_A repeats once per content block (5->50 output tokens); a correct dedupe keeps only
 # the final (last) occurrence: 2+50+100+0=152. msg_B has no cache_creation_input_tokens
-# (tests the `// 0` default): 3+20+0+500=523. Expected total: 675.
+# (tests the `// 0` default): 3+20+0+500=523. Logged tokens = final turn (msg_B) = 523;
+# a sum over turns would give 675, a sum without dedupe 782.
 # Duration: last ts (00:01:30) - first ts (00:00:00) = 90000ms.
 
 payload() {
@@ -58,7 +59,7 @@ EOF2
 assert "model alias" "$model" "sonnet"
 assert "effort" "$effort" "high"
 assert "resolved_model" "$resolved" "claude-sonnet-5"
-assert "tokens deduped by message id" "$tokens" "675"
+assert "tokens = final turn total" "$tokens" "523"
 assert "duration_ms from first/last transcript timestamp" "$duration" "90000"
 
 # non-auto-route agent -> must be ignored (no new line)
@@ -70,7 +71,7 @@ assert "non-auto-route agent ignored" "$lines2" "1"
 stats_out=$(bash "$STATS")
 echo "$stats_out"
 case "$stats_out" in
-  *"sonnet + high"*"1 runs"*"675 tokens"*"90s avg"*) echo "PASS: stats.sh output" ;;
+  *"sonnet + high"*"1 runs"*"523 tokens"*"90s avg"*) echo "PASS: stats.sh output" ;;
   *) echo "FAIL: stats.sh output did not match (got: $stats_out)"; fail=1 ;;
 esac
 
