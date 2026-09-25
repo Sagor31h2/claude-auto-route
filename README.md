@@ -1,8 +1,10 @@
 # auto-route
 
-auto-route picks a Claude model (`haiku`, `sonnet`, or `opus`) and a reasoning effort (`low` to `xhigh`) for each task, then delegates it to a subagent running that combination. The point is cost: small or mechanical tasks don't need to run on the most expensive model at the highest effort, so only the tasks that need it get it.
+Claude Code plugin that picks a model and reasoning effort per task, then delegates to a subagent running that combination.
 
-Before delegating, it prints the choice so you always see why:
+## Overview
+
+Small or mechanical tasks don't need the most expensive model at the highest effort. Before delegating, it prints the choice so you always see why:
 
 ```
 > Rename this variable everywhere
@@ -11,25 +13,18 @@ Route: sonnet + low (mechanical rename across many files)
 
 Use it per task, or turn it on once to route every prompt automatically.
 
-## Quick start
+## Installation
 
-Install inside Claude Code:
+Inside Claude Code (or `claude` from a terminal, in place of the leading `/`):
 
 ```
 /plugin marketplace add Sagor31h2/claude-auto-route
 /plugin install auto-route@auto-route
 ```
 
-or from a terminal:
+Restart Claude Code after installing.
 
-```
-claude plugin marketplace add Sagor31h2/claude-auto-route
-claude plugin install auto-route@auto-route
-```
-
-Then restart Claude Code, try `/auto-route:auto-route <task>`, and optionally `/auto-route:auto-route on` to route every prompt. Check `/auto-route:auto-route status` any time to see whether always-on is enabled, and `/auto-route:auto-route stats` to see what it's routed so far.
-
-## Commands
+## Usage
 
 | Command | Action |
 |---|---|
@@ -40,9 +35,9 @@ Then restart Claude Code, try `/auto-route:auto-route <task>`, and optionally `/
 | `/auto-route:auto-route stats` | Runs, tokens and average duration per route |
 | `/auto-route:auto-route reset` | Reset stats log |
 
-Always-on uses the flag file `~/.claude/auto-route.on` (under `$CLAUDE_CONFIG_DIR` if set), can also be toggled with touch/rm, and skips slash commands and short conversational replies or interruptions like "ok", "yes, continue", "stop", "cancel", or "looks good".
+Always-on is controlled by the flag file `~/.claude/auto-route.on` (under `$CLAUDE_CONFIG_DIR` if set), which the `on`/`off` commands create or remove, or which can be toggled directly with `touch`/`rm`. When enabled, every prompt must invoke the auto-route skill before any tool call, except a pure chat answer that needs no tools (answered inline starting with `Route: inline (<reason>)`). Slash commands and short conversational replies like "ok", "stop", or "looks good" are skipped entirely.
 
-## How routing works
+## How it works
 
 Tasks are evaluated on two independent axes:
 
@@ -51,17 +46,9 @@ Tasks are evaluated on two independent axes:
 | Model | `haiku`, `sonnet`, `opus` | Capability or knowledge needed |
 | Effort | `low`, `medium`, `high`, `xhigh` (plus `max` only as the last retry) | Step-by-step reasoning needed |
 
-Claude Code reads effort only from an agent's frontmatter, so the plugin ships five agents (`auto-route:effort-low` through `auto-route:effort-max`) with a fixed effort and `model: inherit`; the skill picks one and passes the model per call (12 first-pick combinations plus `opus` + `max`).
+Claude Code reads effort only from an agent's frontmatter, so the plugin ships five agents (`auto-route:effort-low` through `auto-route:effort-max`) with a fixed effort and `model: inherit`; the skill picks one and passes the model per call (12 first-pick combinations plus `opus` + `max`). A mechanical rename across many files, for example, routes to `sonnet` + `low`.
 
-| Task | Route |
-|---|---|
-| Fix a typo | `haiku` + `low` |
-| Find a definition | `haiku` + `low` |
-| Feature in a known file | `sonnet` + `medium` |
-| Small but subtle race condition | `sonnet` + `xhigh` |
-| Mechanical rename across many files | `sonnet` + `low` |
-
-Phases and route ranges (the rubric picks within the range by task size and risk):
+Work is split into phases, each with a route range that the rubric picks within by task size and risk:
 
 | Phase | Route range |
 |---|---|
@@ -71,36 +58,26 @@ Phases and route ranges (the rubric picks within the range by task size and risk
 | Debug | `sonnet` + `effort-high` to `opus` + `effort-xhigh` |
 | Review | `sonnet` + `effort-medium` (small diff) to `opus` + `effort-high` (security, concurrency, many files) |
 
-Plan, Research and Review are read-only.
+Plan, Research and Review are read-only. The planner runs once and returns 3-5 steps; each step runs on its own route with earlier results passed along, in parallel only for independent steps on disjoint files. In Claude Code plan mode it stops for approval, and a Review follows risky or multi-file plans.
 
-The planner runs once and returns 3-5 steps. Each step runs on its own route with earlier results passed along, running in parallel only for independent steps on disjoint files. In Claude Code plan mode it stops for approval, and a Review follows risky or multi-file plans.
+Other rules: pure chat and tiny tasks that depend on the current conversation are answered inline; when unsure on an axis it takes the higher value; one retry for capability failures, one step up on the axis that fell short (effort up to xhigh, model up to opus, opus + max only after opus + xhigh); permission and environment errors are reported, not retried.
 
-Rules:
-- Pure chat and tiny tasks that depend on the current conversation are answered inline.
-- When unsure on an axis it takes the higher value.
-- One retry for capability failures, one step up on the axis that fell short (effort up to xhigh, model up to opus, opus + max only after opus + xhigh).
-- Permission and environment errors are reported, not retried.
+`/model opusplan` covers the main session; auto-route covers delegated work.
 
-For planning in the main session, `/model opusplan` covers the main session, auto-route covers delegated work.
+Claude Fable is not used: it costs $10/$50 per million input/output tokens vs $4/$20 for Opus 5.5, which matches or beats it on most benchmarks and, unlike Fable, accepts per-turn effort ([Pricing](https://platform.claude.com/docs/en/about-claude/pricing), [The Decoder](https://the-decoder.com/claude-opus-5-5-matches-fable-5-1-at-40-percent-lower-cost-as-anthropic-promises-to-fix-claudish-writing/), [Effort docs](https://platform.claude.com/docs/en/build-with-claude/effort)).
 
-Claude Fable is not used because it costs $10/$50 per million input/output tokens vs $4/$20 for Opus 5.5, while Opus 5.5 matches or beats it on most benchmarks ([Pricing](https://platform.claude.com/docs/en/about-claude/pricing), [The Decoder](https://the-decoder.com/claude-opus-5-5-matches-fable-5-1-at-40-percent-lower-cost-as-anthropic-promises-to-fix-claudish-writing/)). In addition, it doesn't accept per-turn effort ([Effort docs](https://platform.claude.com/docs/en/build-with-claude/effort)).
+Routing happens through subagents rather than switching the session's effort mid-conversation: effort is part of the prompt cache key, so per-prompt switching re-reads the conversation uncached; `effortLevel` is only re-read from the global `~/.claude/settings.json`, so rewriting it affects every open session ([issue #95347](https://github.com/anthropics/claude-code/issues/95347)). Subagents have their own context, so per-task choices cost nothing extra and don't touch other sessions.
 
-## Why subagents, not session effort
+### Stats
 
-- Effort is part of the prompt cache key so per-prompt switching re-reads the conversation uncached.
-- `effortLevel` is only re-read from the global `~/.claude/settings.json`, so rewriting it affects every open session ([issue #95347](https://github.com/anthropics/claude-code/issues/95347)).
-- Subagents have their own context, so per-task choices cost nothing extra and don't touch other sessions.
-
-## Stats
-
-Each routed call appends one line to `~/.claude/auto-route.log` (or under `$CLAUDE_CONFIG_DIR`) with time, model, effort, resolved model, tokens and duration, and no prompt or task text. Logging happens when the subagent finishes (not at launch), so it works the same for a synchronous call and a backgrounded one; tokens and duration are computed from the subagent's own transcript; tokens is the final turn's total (the same figure Claude Code reports for the subagent). Fields can be empty if the transcript can't be read. Needs `jq` (without it nothing is logged). Reset with `/auto-route:auto-route reset` or by deleting the file. Hooks run through bash (on Windows, Git Bash).
+Each routed call appends one line to `~/.claude/auto-route.log` (or under `$CLAUDE_CONFIG_DIR`) with time, model, effort, resolved model, tokens and duration, no prompt or task text. Logged when the subagent finishes (not at launch), so it works the same for synchronous and backgrounded calls; tokens and duration come from the subagent's own transcript, tokens being the final turn's total. Fields can be empty if the transcript can't be read. Needs `jq` (without it nothing is logged). Reset with `/auto-route:auto-route reset` or by deleting the file. Hooks run through bash (on Windows, Git Bash).
 
 ## Troubleshooting
 
 **Routing not happening in a session**
 
-- Always-on is a nudge to the main model, not a hard override: by design it can still answer a pure chat question or a tiny task that depends on the current conversation inline instead of delegating. Force routing for a specific task with `/auto-route:auto-route <task>`.
-- Edits to this repo don't reach a session that's already running: the session uses the installed copy under `~/.claude/plugins/cache/auto-route/auto-route/<version>`. Update the plugin (see "Update and uninstall" below) and restart Claude Code.
+- Always-on is a nudge, not a hard override: it can still answer a pure chat question or a tiny task inline instead of delegating. Force routing for a specific task with `/auto-route:auto-route <task>`.
+- Edits to this repo don't reach a running session: it uses the installed copy under `~/.claude/plugins/cache/auto-route/auto-route/<version>`. Update the plugin (see "Update" below) and restart Claude Code.
 - Confirm always-on is actually on with `/auto-route:auto-route status`, or check that `~/.claude/auto-route.on` exists.
 
 ## Limitations
@@ -108,50 +85,41 @@ Each routed call appends one line to `~/.claude/auto-route.log` (or under `$CLAU
 - The main session keeps its own model and effort (only delegated work is routed).
 - Choosing a route and relaying results costs some main-session tokens.
 
-## Development
-
-Validate with `claude plugin validate .`.
-
-Run evals:
-
-```
-claude plugin eval . --runs 1 --ablation none --scaffold --trust-plugin --no-publish
-```
-
-The `--scaffold` flag runs each case's scaffold.sh, which stages small fixture files, as you. Graders check the actual Agent call (model and subagent_type) and the Route: line. The chat case checks that no subagent is called. A full run costs about $0.60. Hitting the 150-second timeout after the first delegation is expected.
-
-File layout:
-
-```
-.claude-plugin/
-  plugin.json
-agents/
-  effort-low.md
-  effort-medium.md
-  effort-high.md
-  effort-xhigh.md
-  effort-max.md
-hooks/
-  always-on.sh
-  log-route.sh
-skills/
-  auto-route/
-    SKILL.md
-    stats.sh
-evals/
-  debug-deadlock/
-  plan-multistep/
-  pure-chat/
-  research-lookup/
-  typo-fix/
-```
-
-## Update and uninstall
+## Update
 
 ```
 claude plugin marketplace update auto-route
 claude plugin update auto-route@auto-route
+```
+
+Restart Claude Code after updating.
+
+## Uninstall
+
+```
 claude plugin uninstall auto-route@auto-route
+```
+
+This leaves `~/.claude/auto-route.on` and `~/.claude/auto-route.log` (or their `$CLAUDE_CONFIG_DIR` equivalents) in place; remove them manually for no trace left behind.
+
+## Contributing
+
+Fork, branch, make your change, then:
+
+1. Run the tests: `bash tests/always-on.test.sh` and `bash tests/log-route.test.sh`.
+2. Validate the plugin manifest: `claude plugin validate .`.
+3. Optionally run the evals: `claude plugin eval . --runs 1 --ablation none --scaffold --trust-plugin --no-publish` (about $0.60; hitting the 150-second timeout after the first delegation is expected).
+4. Bump the version in `.claude-plugin/plugin.json` and open a pull request.
+
+File layout:
+
+```
+.claude-plugin/plugin.json
+agents/effort-{low,medium,high,xhigh,max}.md
+hooks/always-on.sh, log-route.sh
+skills/auto-route/SKILL.md, stats.sh
+tests/always-on.test.sh, log-route.test.sh
+evals/debug-deadlock/, plan-multistep/, pure-chat/, research-lookup/, typo-fix/
 ```
 
 ## License
