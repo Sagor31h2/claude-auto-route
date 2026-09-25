@@ -6,7 +6,9 @@ SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 ARG="${1:-}"
 
 # Normalize: lowercase and trim whitespace
-cmd=$(printf '%s' "$ARG" | tr '[:upper:]' '[:lower:]' | xargs)
+cmd=$(printf '%s' "$ARG" | tr '[:upper:]' '[:lower:]' | tr -s '[:space:]' ' ')
+cmd="${cmd#"${cmd%%[![:space:]]*}"}"
+cmd="${cmd%"${cmd##*[![:space:]]}"}"
 
 case "$cmd" in
   on)

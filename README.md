@@ -1,6 +1,6 @@
 # auto-route
 
-[![Version](https://img.shields.io/badge/version-1.13.0-blue.svg)](.claude-plugin/plugin.json)
+[![Version](https://img.shields.io/badge/version-1.13.1-blue.svg)](.claude-plugin/plugin.json)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Claude Code](https://img.shields.io/badge/Claude%20Code-Plugin-purple.svg)](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview)
 [![Tests](https://img.shields.io/badge/tests-passing-brightgreen.svg)](tests/)

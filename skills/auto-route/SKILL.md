@@ -17,11 +17,11 @@ Pick phase first; it sets the route range, scaled to task size and risk:
 - **Research** (read-only): find code, facts, behavior -> `haiku` + `effort-low` to `sonnet` + `effort-medium`. Cite `file:line` findings.
 - **Implement**: concrete code changes -> rubric route. Exactly one plan step per delegation.
 - **Debug**: isolate root cause before fix -> `sonnet` + `effort-high` to `opus` + `effort-xhigh`.
-- **Review** (read-only): audit risky or multi-file diffs -> `sonnet` + `effort-medium` to `opus` + `effort-high`. Problems only.
+- **Review** (read-only): audit risky or multi-file diffs -> `sonnet` + `effort-medium` to `opus` + `effort-high`. Problems only. Run automatically after the last step of a risky or multi-file plan.
 
 ### Rubric
 Score two independent axes. Call Agent with `subagent_type: auto-route:effort-<level>` and ALWAYS pass `model` (omitted = subagent inherits session model).
-Fallback if plugin agents missing: use `subagent_type: general-purpose` with `model`, noting `(effort not set: plugin agents missing)`.
+Fallback if plugin agents missing: use `subagent_type: general-purpose` with `model`, noting `(effort not set: plugin agents missing)`. Full routing: `/plugin marketplace add Sagor31h2/claude-auto-route` then `/plugin install auto-route@auto-route`.
 
 **Model** (capability / knowledge):
 - `haiku`: mechanical, fully specified, small scope (rename, format, lookup, run command).

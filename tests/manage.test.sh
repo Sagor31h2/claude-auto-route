@@ -76,8 +76,22 @@ assert_eq "reset returns Auto-route stats reset." "$out" "Auto-route stats reset
 # 10. Case insensitivity and whitespace trimming
 out=$(bash "$MANAGE" "  ON  ")
 assert_eq "case insensitive ON" "$out" "Auto-route: ON"
+out=$(bash "$MANAGE" "  STATUS  ")
+assert_eq "whitespace and case insensitive STATUS" "$out" "Auto-route: ON"
 out=$(bash "$MANAGE" "STATS ON")
 assert_eq "case insensitive STATS ON" "$out" "Auto-route stats: ON"
+
+# 11. Quoted unknown command yields unknown command message and exit 1 (no xargs crash)
+rc=0
+out=$(bash "$MANAGE" "don't" 2>&1) || rc=$?
+assert_eq "quoted unknown command exit code" "$rc" "1"
+assert_eq "quoted unknown command output" "$out" "Unknown command: don't"
+if [[ "$out" != *"xargs"* ]]; then
+  echo "PASS: quoted unknown command does not trigger xargs error"
+else
+  echo "FAIL: quoted unknown command triggered xargs error: $out"
+  fail=1
+fi
 
 if [ "$fail" -eq 0 ]; then
   echo "ALL PASS"
