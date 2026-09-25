@@ -1,15 +1,42 @@
 #!/usr/bin/env bash
-# PostToolUse(Agent): append one JSON line per auto-route delegation. Never prints, never fails.
+# SubagentStop: append one JSON line per finished auto-route delegation (sync or background).
+# The launch (PostToolUse) only carries an agent id for background runs, no usage/duration,
+# so we wait for completion and compute both from the subagent's own transcript.
 exec >/dev/null 2>&1
-command -v jq || exit 0
+command -v jq >/dev/null || exit 0
 log="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/auto-route.log"
-# ponytail: unbounded append (~150 bytes per call); add rotation if logs ever get large
-line=$(jq -c 'select((.tool_input.subagent_type // "") | startswith("auto-route:"))
-  | {ts: (now | todate),
-     model: (.tool_input.model // null),
-     effort: (.tool_input.subagent_type | sub("^auto-route:effort-"; "")),
-     resolved_model: (.tool_response.resolvedModel? // null),
-     tokens: (.tool_response.totalTokens? // null),
-     duration_ms: (.tool_response.totalDurationMs? // null)}') || exit 0
+input=$(cat)
+agent_type=$(printf '%s' "$input" | jq -r '.agent_type // empty') || exit 0
+case "$agent_type" in auto-route:*) ;; *) exit 0 ;; esac
+transcript=$(printf '%s' "$input" | jq -r '.agent_transcript_path // empty')
+[ -n "$transcript" ] && [ -f "$transcript" ] || exit 0
+effort="${agent_type#auto-route:effort-}"
+# ponytail: a message id repeats once per content block with growing usage; the last
+# occurrence per id is the final total (group_by is a stable sort, so map(.[-1]) keeps it).
+line=$(jq -cs --arg effort "$effort" '
+  ([.[] | .timestamp? // empty]) as $ts
+  | ([.[] | select(.type=="assistant") | select(.message.usage != null)
+      | {id: .message.id, u: .message.usage, model: .message.model}]
+     | group_by(.id) | map(.[-1])) as $d
+  | (($d | last | .model) // null) as $rm
+  | {
+      ts: (now | todate),
+      model: (if $rm == null then null
+              elif ($rm | test("opus")) then "opus"
+              elif ($rm | test("sonnet")) then "sonnet"
+              elif ($rm | test("haiku")) then "haiku"
+              elif ($rm | test("fable")) then "fable"
+              else null end),
+      effort: $effort,
+      resolved_model: $rm,
+      tokens: (($d | map(.u.input_tokens + .u.output_tokens
+                         + (.u.cache_creation_input_tokens // 0)
+                         + (.u.cache_read_input_tokens // 0)) | add) // 0),
+      duration_ms: (if ($ts | length) > 1
+                    then ((($ts | max | sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601)
+                           - ($ts | min | sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601)) * 1000)
+                    else 0 end)
+    }
+' "$transcript") || exit 0
 [ -n "$line" ] && printf '%s\n' "$line" >> "$log"
 exit 0

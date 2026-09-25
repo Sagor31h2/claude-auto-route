@@ -85,7 +85,7 @@ Claude Fable is not used because it costs $10/$50 per million input/output token
 
 ## Stats
 
-Each routed call appends one line to `~/.claude/auto-route.log` (or under `$CLAUDE_CONFIG_DIR`) with time, model, effort, resolved model, tokens and duration, and no prompt or task text. Token and duration fields can be empty for background or failed calls. Needs `jq` (without it nothing is logged). Delete the file to reset. Hooks run through bash (on Windows, Git Bash).
+Each routed call appends one line to `~/.claude/auto-route.log` (or under `$CLAUDE_CONFIG_DIR`) with time, model, effort, resolved model, tokens and duration, and no prompt or task text. Logging happens when the subagent finishes (not at launch), so it works the same for a synchronous call and a backgrounded one; tokens and duration are computed from the subagent's own transcript, deduping usage per message id. Fields can be empty if the transcript can't be read. Needs `jq` (without it nothing is logged). Delete the file to reset. Hooks run through bash (on Windows, Git Bash).
 
 ## Limitations
 
