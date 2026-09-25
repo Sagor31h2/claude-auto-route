@@ -1,6 +1,6 @@
 {
   "name": "auto-route",
-  "version": "1.9.1",
+  "version": "1.10.0",
   "description": "Auto-pick Claude model and reasoning effort per task by delegating to effort-level subagents. Optional always-on mode.",
   "author": {
     "name": "sagor"

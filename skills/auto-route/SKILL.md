@@ -1,16 +1,17 @@
 ---
 name: auto-route
-description: Pick model and reasoning effort per task and delegate to a matching subagent; also toggles always-on routing. Use for /auto-route:auto-route [on|off|status|stats|<task>] or when asked to auto-route or pick the model.
+description: Pick model and reasoning effort per task and delegate to a matching subagent; also toggles always-on routing. Use for /auto-route:auto-route [on|off|status|stats|reset|<task>] or when asked to auto-route or pick the model.
 ---
 
 ## Commands
 
 Argument: `$ARGUMENTS`. Trim it and match case-insensitively. Only the user toggles; never do it on your own. Anything else is a task (see Route).
 
-- `on`: `touch "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/auto-route.on"`
+- `on`: `mkdir -p "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && touch "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/auto-route.on"`
 - `off`: `rm -f "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/auto-route.on"`
 - `status`: change nothing.
 - `stats`: run `bash <this skill's base directory>/stats.sh` and show the result as a compact table (route, runs, tokens, average seconds).
+- `reset`: `rm -f "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/auto-route.log"` and reply with one line: `Auto-route stats reset.`
 
 After `on`, `off` or `status`, run `[ -f "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/auto-route.on" ] && echo ON || echo OFF` and reply with one line: `Auto-route: ON` or `Auto-route: OFF`.
 

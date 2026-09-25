@@ -9,7 +9,12 @@ input=$(cat)
 agent_type=$(printf '%s' "$input" | jq -r '.agent_type // empty') || exit 0
 case "$agent_type" in auto-route:*) ;; *) exit 0 ;; esac
 transcript=$(printf '%s' "$input" | jq -r '.agent_transcript_path // empty')
-[ -n "$transcript" ] && [ -f "$transcript" ] || exit 0
+[ -n "$transcript" ] || exit 0
+for _ in 1 2 3 4 5; do
+  [ -s "$transcript" ] && break
+  sleep 0.1
+done
+[ -s "$transcript" ] || exit 0
 effort="${agent_type#auto-route:effort-}"
 # ponytail: a message id repeats once per content block with growing usage; the last
 # occurrence per id is the final total (group_by is a stable sort, so map(.[-1]) keeps it).
@@ -37,10 +42,13 @@ line=$(jq -cs --arg effort "$effort" '
                       + ($u.cache_creation_input_tokens // 0)
                       + ($u.cache_read_input_tokens // 0) end),
       duration_ms: (if ($ts | length) > 1
-                    then ((($ts | max | sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601)
-                           - ($ts | min | sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601)) * 1000)
+                    then (try ((($ts | max | sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601)
+                               - ($ts | min | sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601)) * 1000) catch 0)
                     else 0 end)
     }
 ' "$transcript") || exit 0
-[ -n "$line" ] && printf '%s\n' "$line" >> "$log"
+if [ -n "$line" ]; then
+  mkdir -p "$(dirname "$log")"
+  printf '%s\n' "$line" >> "$log"
+fi
 exit 0

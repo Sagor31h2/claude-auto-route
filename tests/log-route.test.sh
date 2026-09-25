@@ -75,6 +75,28 @@ case "$stats_out" in
   *) echo "FAIL: stats.sh output did not match (got: $stats_out)"; fail=1 ;;
 esac
 
+# stats.sh ignores empty and corrupt lines without erroring
+printf '\n{"malformed json\n' >> "$log"
+stats_out2=$(bash "$STATS")
+case "$stats_out2" in
+  *"sonnet + high"*"1 runs"*"523 tokens"*"90s avg"*) echo "PASS: stats.sh skips malformed lines" ;;
+  *) echo "FAIL: stats.sh did not handle malformed lines (got: $stats_out2)"; fail=1 ;;
+esac
+
+# irregular timestamps with timezone offset: duration falls back to 0 without discarding entry
+transcript_tz="$WORK/agent-tz.jsonl"
+cat > "$transcript_tz" <<'EOFTZ'
+{"type":"user","timestamp":"2026-01-01T00:00:00+02:00","message":{"role":"user","content":"go"}}
+{"type":"assistant","timestamp":"2026-01-01T00:00:10+02:00","message":{"id":"msg_TZ","model":"claude-3-5-haiku-20241022","usage":{"input_tokens":10,"output_tokens":20}}}
+EOFTZ
+jq -nc --arg t "$transcript_tz" '{agent_id:"fake2", agent_type:"auto-route:effort-low", agent_transcript_path:$t, session_id:"s2", hook_event_name:"SubagentStop"}' | bash "$HOOK"
+read -r m2 e2 dur2 <<EOF3
+$(tail -n 1 "$log" | jq -r '"\(.model) \(.effort) \(.duration_ms)"')
+EOF3
+assert "haiku logged despite tz offset" "$m2" "haiku"
+assert "effort-low logged despite tz offset" "$e2" "low"
+assert "duration defaulted to 0 on unparseable tz format" "$dur2" "0"
+
 if [ "$fail" -eq 0 ]; then
   echo "ALL PASS"
   exit 0

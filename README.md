@@ -31,8 +31,9 @@ Then restart Claude Code, try `/auto-route:auto-route <task>`, and optionally `/
 | `/auto-route:auto-route off` | Back to manual (default) |
 | `/auto-route:auto-route status` | Show whether always-on is enabled |
 | `/auto-route:auto-route stats` | Runs, tokens and average duration per route |
+| `/auto-route:auto-route reset` | Reset stats log |
 
-Always-on uses the flag file `~/.claude/auto-route.on` (under `$CLAUDE_CONFIG_DIR` if set), can also be toggled with touch/rm, and skips slash commands and short replies like "ok", "yes, continue" or "looks good".
+Always-on uses the flag file `~/.claude/auto-route.on` (under `$CLAUDE_CONFIG_DIR` if set), can also be toggled with touch/rm, and skips slash commands and short conversational replies or interruptions like "ok", "yes, continue", "stop", "cancel", or "looks good".
 
 ## How routing works
 
@@ -85,7 +86,7 @@ Claude Fable is not used because it costs $10/$50 per million input/output token
 
 ## Stats
 
-Each routed call appends one line to `~/.claude/auto-route.log` (or under `$CLAUDE_CONFIG_DIR`) with time, model, effort, resolved model, tokens and duration, and no prompt or task text. Logging happens when the subagent finishes (not at launch), so it works the same for a synchronous call and a backgrounded one; tokens and duration are computed from the subagent's own transcript; tokens is the final turn's total (the same figure Claude Code reports for the subagent). Fields can be empty if the transcript can't be read. Needs `jq` (without it nothing is logged). Delete the file to reset. Hooks run through bash (on Windows, Git Bash).
+Each routed call appends one line to `~/.claude/auto-route.log` (or under `$CLAUDE_CONFIG_DIR`) with time, model, effort, resolved model, tokens and duration, and no prompt or task text. Logging happens when the subagent finishes (not at launch), so it works the same for a synchronous call and a backgrounded one; tokens and duration are computed from the subagent's own transcript; tokens is the final turn's total (the same figure Claude Code reports for the subagent). Fields can be empty if the transcript can't be read. Needs `jq` (without it nothing is logged). Reset with `/auto-route:auto-route reset` or by deleting the file. Hooks run through bash (on Windows, Git Bash).
 
 ## Limitations
 
