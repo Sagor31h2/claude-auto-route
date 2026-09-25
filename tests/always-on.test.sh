@@ -46,6 +46,12 @@ for ack in "ok" "okay" "yes" "yep" "sure" "continue" "proceed" "done" "lgtm" "lo
   assert_eq "acknowledgement skipped: $ack" "$out" ""
 done
 
+# 3b. Greetings and thanks/farewells should be skipped
+for greet in "hi" "hello" "hey" "Hi!" "thanks" "thank you" "thx" "good morning" "bye" "goodbye"; do
+  out=$(send_prompt "$greet")
+  assert_eq "greeting skipped: $greet" "$out" ""
+done
+
 # 4. Conversational cancellations and interruptions should be skipped
 for cancel in "no" "stop" "stop!" "cancel" "wait" "hold on" "never mind" "don't do that"; do
   out=$(send_prompt "$cancel")
@@ -62,7 +68,7 @@ for task in "Fix typo in README" "Why does worker pool deadlock?" "Refactor data
 done
 
 # 6. Tasks starting with ack/cancel words must still be routed
-for complex in "continue fixing bug in auth.py" "stop the dev server on port 8080" "cancel pending orders in worker"; do
+for complex in "continue fixing bug in auth.py" "stop the dev server on port 8080" "cancel pending orders in worker" "hi, fix the bug in stats.sh" "thanks, now add tests"; do
   out=$(send_prompt "$complex")
   case "$out" in
     *"AUTO-ROUTE ON"*) echo "PASS: multi-word task routed: $complex" ;;

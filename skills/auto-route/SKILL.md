@@ -1,11 +1,11 @@
 ---
 name: auto-route
-description: Pick model and reasoning effort per task and delegate to a matching subagent; also toggles always-on routing. Use for /auto-route:auto-route [on|off|status|stats|reset|<task>] or when asked to auto-route or pick the model.
+description: Pick model and effort per task and delegate to a matching subagent; toggles always-on routing. Use for /auto-route:auto-route [on|off|status|stats|reset|<task>], or when asked to auto-route or pick the model.
 ---
 
 ## Commands
 
-Argument: `$ARGUMENTS`. Trim it and match case-insensitively. Only the user toggles; never do it on your own. Anything else is a task (see Route).
+Argument: `$ARGUMENTS`, trimmed, matched case-insensitively. Only the user toggles; never do it on your own. Anything else is a task (see Route).
 
 - `on`: `mkdir -p "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && touch "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/auto-route.on"`
 - `off`: `rm -f "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/auto-route.on"`
@@ -23,7 +23,7 @@ Route the argument, or the current user prompt if there is none.
 
 ### Phases
 
-Pick the phase first: it fixes the kind of work. The rubric picks the route within the phase's range, scaled to the task's size and risk.
+Pick the phase first; it fixes the kind of work. The rubric picks the route within the phase's range, scaled to size and risk.
 
 | Phase | When | Route range |
 |---|---|---|
@@ -33,11 +33,13 @@ Pick the phase first: it fixes the kind of work. The rubric picks the route with
 | Debug | Unknown cause, flaky or intermittent failure | `sonnet` + `effort-high` to `opus` + `effort-xhigh`; root cause before fix |
 | Review | After a risky or multi-file change | `sonnet` + `effort-medium` (small diff) to `opus` + `effort-high` (security, concurrency, many files), read-only, problems only |
 
-The planner returns 3-5 coarse steps, each with What, Files, Depends on, Done when, and Route (model + effort). In Claude Code plan mode, stop after the plan and wait for approval. Otherwise show the plan in a few lines, then route each step with its suggested route (fix it if clearly wrong). Run steps in parallel only when they're independent and touch disjoint files. After the last step of a risky or multi-file plan, run a Review.
+The planner returns 3-5 coarse steps, each with What, Files, Depends on, Done when, and Route (model + effort). In Claude Code plan mode, stop after the plan and wait for approval; otherwise show the plan in a few lines, then route each step with its suggested route (fix it if clearly wrong). Run independent steps with disjoint files in parallel. After the last step of a risky or multi-file plan, run a Review.
 
 ### Rubric
 
 Score two independent axes, then call the Agent tool with `subagent_type` = the effort agent and `model` = the chosen model (always pass `model`).
+
+Skill-only install (no `agents/` from the plugin): if `auto-route:effort-*` isn't a listed agent type, use `subagent_type: general-purpose` instead, still passing `model`. Effort can't be set this way, so say so in the route line, e.g. `Route: sonnet (effort not set: plugin agents missing)`. Full routing needs the plugin: `/plugin marketplace add Sagor31h2/claude-auto-route` then `/plugin install auto-route@auto-route`.
 
 Model = capability or knowledge needed:
 - `haiku`: mechanical, well-specified, small (rename, format, lookup, run a command)
@@ -56,7 +58,7 @@ Examples: typo = `haiku` + `effort-low`; find a definition = `haiku` + `effort-l
 
 ### Handoff
 
-Subagents start with no memory of this conversation. Every delegation prompt contains:
+Subagents start with no memory of this conversation. Every delegation prompt has:
 
 ```
 Goal: <one sentence>
