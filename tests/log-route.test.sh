@@ -13,6 +13,7 @@ WORK=$(mktemp -d)
 export CLAUDE_CONFIG_DIR="$WORK/config"
 mkdir -p "$CLAUDE_CONFIG_DIR"
 trap 'rm -rf "$WORK"' EXIT
+touch "$CLAUDE_CONFIG_DIR/auto-route.stats"
 
 fail=0
 assert() {
@@ -96,6 +97,12 @@ EOF3
 assert "haiku logged despite tz offset" "$m2" "haiku"
 assert "effort-low logged despite tz offset" "$e2" "low"
 assert "duration defaulted to 0 on unparseable tz format" "$dur2" "0"
+
+# flag absent -> hook exits before logging, log file not (re)created
+WORK2=$(mktemp -d)
+CLAUDE_CONFIG_DIR="$WORK2/config" bash -c "payload() { jq -nc --arg t '$transcript' --arg at \"\$1\" '{agent_id:\"fake3\", agent_type:\$at, agent_transcript_path:\$t, session_id:\"s3\", hook_event_name:\"SubagentStop\"}'; }; payload auto-route:effort-high | bash '$HOOK'"
+[ -f "$WORK2/config/auto-route.log" ] && { echo "FAIL: log file created without stats flag"; fail=1; } || echo "PASS: no log file without stats flag"
+rm -rf "$WORK2"
 
 if [ "$fail" -eq 0 ]; then
   echo "ALL PASS"

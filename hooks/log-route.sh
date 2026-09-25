@@ -3,6 +3,7 @@
 # The launch (PostToolUse) only carries an agent id for background runs, no usage/duration,
 # so we wait for completion and compute both from the subagent's own transcript.
 exec >/dev/null 2>&1
+[ -f "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/auto-route.stats" ] || exit 0
 command -v jq >/dev/null || exit 0
 log="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/auto-route.log"
 input=$(cat)

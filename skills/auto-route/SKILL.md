@@ -1,6 +1,6 @@
 ---
 name: auto-route
-description: Pick model and effort per task and delegate to a matching subagent; toggles always-on routing. Use for /auto-route:auto-route [on|off|status|stats|reset|<task>], or when asked to auto-route or pick the model.
+description: Pick model and effort per task and delegate to a matching subagent; toggles always-on routing. Use for /auto-route:auto-route [on|off|status|stats [on|off]|reset|<task>], or when asked to auto-route or pick the model.
 ---
 
 ## Commands
@@ -10,8 +10,12 @@ Argument: `$ARGUMENTS`, trimmed, matched case-insensitively. Only the user toggl
 - `on`: `mkdir -p "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && touch "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/auto-route.on"`
 - `off`: `rm -f "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/auto-route.on"`
 - `status`: change nothing.
-- `stats`: run `bash <this skill's base directory>/stats.sh` and show the result as a compact table (route, runs, tokens, average seconds).
+- `stats on`: `mkdir -p "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && touch "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/auto-route.stats"` and reply with one line: `Auto-route stats: ON`
+- `stats off`: `rm -f "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/auto-route.stats"` (log kept) and reply with one line: `Auto-route stats: OFF`
+- `stats`: if `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/auto-route.stats` is missing, reply with one line: `Stats logging is off. Enable with /auto-route:auto-route stats on.` (still run `bash <this skill's base directory>/stats.sh` and show the table if an old log exists). Otherwise run `bash <this skill's base directory>/stats.sh` and show the result as a compact table (route, runs, tokens, average seconds).
 - `reset`: `rm -f "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/auto-route.log"` and reply with one line: `Auto-route stats reset.`
+
+Match `stats on` / `stats off` before plain `stats`.
 
 After `on`, `off` or `status`, run `[ -f "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/auto-route.on" ] && echo ON || echo OFF` and reply with one line: `Auto-route: ON` or `Auto-route: OFF`.
 
