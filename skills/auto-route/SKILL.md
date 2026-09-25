@@ -19,19 +19,19 @@ After `on`, `off` or `status`, run `[ -f "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/au
 
 Route the argument, or the current user prompt if there is none.
 
-**Don't delegate** a pure chat question that needs no tools, or a tiny task that depends on context already in this conversation (re-explaining costs more than doing). Answer those inline.
+**Don't delegate** a pure chat question that needs no tools, or a tiny task that depends on context already in this conversation (re-explaining costs more than doing). Answer those inline, starting with `Route: inline (<reason>)` so the choice stays visible.
 
 ### Phases
 
-Pick the phase first; the rubric fills in anything it leaves open.
+Pick the phase first: it fixes the kind of work. The rubric picks the route within the phase's range, scaled to the task's size and risk.
 
-| Phase | When | Route |
+| Phase | When | Route range |
 |---|---|---|
-| Plan | Multi-step, 3+ files, or unclear approach | `opus` + `effort-high` (`effort-xhigh` for architecture or migrations), read-only |
-| Research | Find code, explain behavior, gather facts | `haiku`/`sonnet` + `effort-low`/`effort-medium`, read-only, file:line findings |
-| Implement | A concrete change | Rubric; one plan step per delegation |
-| Debug | Unknown cause, flaky or intermittent failure | `sonnet`/`opus` + `effort-high`/`effort-xhigh`; root cause before fix |
-| Review | After a risky or multi-file change | `sonnet` + `effort-high`, read-only, problems only |
+| Plan | Multi-step, 3+ files, or unclear approach | `sonnet` + `effort-medium` (small, clear approach) to `opus` + `effort-xhigh` (architecture, migrations), read-only |
+| Research | Find code, explain behavior, gather facts | `haiku` + `effort-low` to `sonnet` + `effort-medium`, read-only, file:line findings |
+| Implement | A concrete change | Rubric, no range; one plan step per delegation |
+| Debug | Unknown cause, flaky or intermittent failure | `sonnet` + `effort-high` to `opus` + `effort-xhigh`; root cause before fix |
+| Review | After a risky or multi-file change | `sonnet` + `effort-medium` (small diff) to `opus` + `effort-high` (security, concurrency, many files), read-only, problems only |
 
 The planner returns 3-5 coarse steps, each with What, Files, Depends on, Done when, and Route (model + effort). In Claude Code plan mode, stop after the plan and wait for approval. Otherwise show the plan in a few lines, then route each step with its suggested route (fix it if clearly wrong). Run steps in parallel only when they're independent and touch disjoint files. After the last step of a risky or multi-file plan, run a Review.
 
