@@ -1,6 +1,6 @@
 # auto-route
 
-[![Version](https://img.shields.io/badge/version-1.12.0-blue.svg)](.claude-plugin/plugin.json)
+[![Version](https://img.shields.io/badge/version-1.13.0-blue.svg)](.claude-plugin/plugin.json)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Claude Code](https://img.shields.io/badge/Claude%20Code-Plugin-purple.svg)](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview)
 [![Tests](https://img.shields.io/badge/tests-passing-brightgreen.svg)](tests/)
@@ -80,7 +80,7 @@ TCP is connection-oriented and ensures reliable, ordered data delivery...
 | **Automated Escalation** | If an agent is underpowered, you must manually restart with higher params. | Automatically retries once on the deficient axis (`effort` or `model`). |
 
 > [!TIP]
-> **Minimal Token Footprint**: ~290 tokens per session (plugin registration), ~40 tokens per prompt (always-on hook), ~1.8k tokens per routed task (rubric prompt), and ~70 tokens per launched subagent. Pure chat questions cost 0 extra tokens.
+> **Minimal Token Footprint**: ~290 tokens per session (plugin registration), ~40 tokens per prompt (always-on hook), ~850 tokens on initial skill invoke (0 extra tokens on subsequent turns via session cache reuse), and ~70 tokens per launched subagent. Pure chat questions cost 0 extra tokens.
 
 ---
 
@@ -440,6 +440,7 @@ Run the automated test harnesses (requires `bash` and `jq`):
 ```bash
 bash tests/always-on.test.sh
 bash tests/log-route.test.sh
+bash tests/manage.test.sh
 ```
 
 ### Validating the Plugin Manifest
@@ -472,10 +473,12 @@ claude plugin eval . --runs 1 --ablation none --scaffold --trust-plugin --no-pub
 ├── skills/
 │   └── auto-route/
 │       ├── SKILL.md                # Core router prompt & rubric logic
+│       ├── manage.sh               # Deterministic admin command handler
 │       └── stats.sh                # Telemetry aggregator script
 ├── tests/
 │   ├── always-on.test.sh           # Test suite for skip patterns and triggers
-│   └── log-route.test.sh           # Test suite for transcript log aggregation
+│   ├── log-route.test.sh           # Test suite for transcript log aggregation
+│   └── manage.test.sh              # Test suite for admin command management
 ├── evals/                          # Evaluation benchmarks
 ├── LICENSE                         # MIT License
 └── README.md                       # Documentation
