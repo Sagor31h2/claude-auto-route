@@ -1,6 +1,6 @@
 {
   "name": "auto-route",
-  "version": "1.13.1",
+  "version": "1.14.0",
   "description": "Auto-pick Claude model and reasoning effort per task by delegating to effort-level subagents. Optional always-on mode.",
   "author": {
     "name": "sagor"
@@ -23,6 +23,17 @@
           {
             "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/log-route.sh\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/log-inline.sh\"",
             "timeout": 5
           }
         ]

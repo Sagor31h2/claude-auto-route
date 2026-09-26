@@ -1,6 +1,6 @@
 # auto-route
 
-[![Version](https://img.shields.io/badge/version-1.13.1-blue.svg)](.claude-plugin/plugin.json)
+[![Version](https://img.shields.io/badge/version-1.14.0-blue.svg)](.claude-plugin/plugin.json)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Claude Code](https://img.shields.io/badge/Claude%20Code-Plugin-purple.svg)](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview)
 [![Tests](https://img.shields.io/badge/tests-passing-brightgreen.svg)](tests/)
@@ -387,16 +387,20 @@ Stats logging is **off by default**, **100% offline**, and purely local — noth
 /auto-route:auto-route stats on
 ```
 
-Then run `/auto-route:auto-route stats` to inspect your **actual measured token consumption and runtimes**. Once enabled, the plugin logs real usage from subagent transcripts into `~/.claude/auto-route.log` after each run and displays a summary table:
+Then run `/auto-route:auto-route stats` to inspect your **actual measured token consumption and runtimes**. Once enabled, the plugin logs real usage from subagent transcripts into `~/.claude/auto-route.log` after each run and displays a summary table. Inline turns (`Route: inline (...)`) are logged too — via a `Stop` hook — so the table shows the full picture, not just delegated subagent runs:
 
 ```text
-haiku + low     18 runs   24190 tokens    4s avg
-sonnet + low    12 runs   18400 tokens    9s avg
-sonnet + medium 24 runs   64280 tokens   18s avg
-sonnet + high    8 runs   32150 tokens   42s avg
-opus + high      3 runs   19800 tokens   65s avg
-opus + xhigh     1 runs   12400 tokens  110s avg
+haiku + low      18 runs   24190 tokens    4s avg
+sonnet + low     12 runs   18400 tokens    9s avg
+sonnet + medium  24 runs   64280 tokens   18s avg
+sonnet + high     8 runs   32150 tokens   42s avg
+opus + high       3 runs   19800 tokens   65s avg
+opus + xhigh      1 runs   12400 tokens  110s avg
+sonnet + inline  31 runs   41200 tokens    0s avg
 ```
+
+> [!NOTE]
+> Inline entries always show `0s avg` and count only the final turn's token usage — duration and per-turn token isolation aren't tracked for inline routes, only that they happened and roughly how much they cost.
 
 ### Why Not Claude Fable?
 
@@ -445,6 +449,7 @@ Run the automated test harnesses (requires `bash` and `jq`):
 ```bash
 bash tests/always-on.test.sh
 bash tests/log-route.test.sh
+bash tests/log-inline.test.sh
 bash tests/manage.test.sh
 ```
 
@@ -474,7 +479,8 @@ claude plugin eval . --runs 1 --ablation none --scaffold --trust-plugin --no-pub
 │   └── effort-max.md               # effort: max, model: inherit (retry only)
 ├── hooks/
 │   ├── always-on.sh                # UserPromptSubmit hook for prompt routing
-│   └── log-route.sh                # SubagentStop hook for transcript telemetry
+│   ├── log-route.sh                # SubagentStop hook for delegated-run telemetry
+│   └── log-inline.sh               # Stop hook for inline-route telemetry
 ├── skills/
 │   └── auto-route/
 │       ├── SKILL.md                # Core router prompt & rubric logic
@@ -482,7 +488,8 @@ claude plugin eval . --runs 1 --ablation none --scaffold --trust-plugin --no-pub
 │       └── stats.sh                # Telemetry aggregator script
 ├── tests/
 │   ├── always-on.test.sh           # Test suite for skip patterns and triggers
-│   ├── log-route.test.sh           # Test suite for transcript log aggregation
+│   ├── log-route.test.sh           # Test suite for delegated-run log aggregation
+│   ├── log-inline.test.sh          # Test suite for inline-route log aggregation
 │   └── manage.test.sh              # Test suite for admin command management
 ├── evals/                          # Evaluation benchmarks
 ├── LICENSE                         # MIT License
