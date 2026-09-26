@@ -328,7 +328,7 @@ Work is partitioned into 5 discrete phases to ensure proper safety boundaries:
 |---|:---:|---|---|
 | **Plan** | Yes | `sonnet` + `medium` to `opus` + `xhigh` | Produces 3–5 coarse, actionable steps with What, Target Files, Dependencies, Route, and Done When. |
 | **Research** | Yes | `haiku` + `low` to `sonnet` + `medium` | Finds definitions, inspects call hierarchies, verifies library APIs. Reports concrete `file:line` locations without edits. |
-| **Implement** | No | Rubric-selected (usually `haiku` + `low` to `sonnet` + `high`) | Modifies files. Exactly one plan step per delegation. |
+| **Implement** | No | Rubric-selected (full range: any `model` + `effort`, scored per task) | Modifies files. Exactly one plan step per delegation. |
 | **Debug** | No | `sonnet` + `high` to `opus` + `xhigh` | Isolates intermittent bugs and deadlocks. Requires establishing root cause before proposing fixes. |
 | **Review** | Yes | `sonnet` + `medium` to `opus` + `high` | Audits code after risky or multi-file plans. Reports critical defects, correctness bugs, and security risks only. |
 
@@ -359,10 +359,10 @@ These are the official Anthropic API list prices per million tokens:
 
 | Model | Input / 1M Tokens | Output / 1M Tokens | Cache Read / 1M Tokens |
 |---|:---:|:---:|:---:|
-| **Claude 3.5 Haiku** | **$0.80** | **$4.00** | **$0.08** |
-| **Claude 3.7 Sonnet** | **$3.00** | **$15.00** | **$0.30** |
-| **Claude Opus 5.5** | **$4.00** | **$20.00** | **$0.40** |
-| *Claude Fable* | *$10.00* | *$50.00* | *$1.25* |
+| **Claude Haiku 4.5** | **$1.00** | **$5.00** | **$0.10** |
+| **Claude Sonnet 5** | **$2.00** | **$10.00** | **$0.20** |
+| **Claude Opus 5.5** | **$4.00** | **$20.00** | **$0.20** |
+| *Claude Fable 5.1* | *$10.00* | *$50.00* | *$0.25* |
 
 *(Source: [Anthropic Pricing Documentation](https://platform.claude.com/docs/en/about-claude/pricing))*
 
@@ -390,13 +390,12 @@ Stats logging is **off by default**, **100% offline**, and purely local — noth
 Then run `/auto-route:auto-route stats` to inspect your **actual measured token consumption and runtimes**. Once enabled, the plugin logs real usage from subagent transcripts into `~/.claude/auto-route.log` after each run and displays a summary table:
 
 ```text
-Route           Runs      Tokens        Avg Duration
-haiku + low     18 runs   24,190 tokens    4s avg
-sonnet + low    12 runs   18,400 tokens    9s avg
-sonnet + medium 24 runs   64,280 tokens   18s avg
-sonnet + high    8 runs   32,150 tokens   42s avg
-opus + high      3 runs   19,800 tokens   65s avg
-opus + xhigh     1 runs   12,400 tokens  110s avg
+haiku + low     18 runs   24190 tokens    4s avg
+sonnet + low    12 runs   18400 tokens    9s avg
+sonnet + medium 24 runs   64280 tokens   18s avg
+sonnet + high    8 runs   32150 tokens   42s avg
+opus + high      3 runs   19800 tokens   65s avg
+opus + xhigh     1 runs   12400 tokens  110s avg
 ```
 
 ### Why Not Claude Fable?
@@ -426,6 +425,12 @@ Claude Fable is billed at $10 / $50 per million input/output tokens—2.5× the 
 - Stats logging is off by default. Enable it with `/auto-route:auto-route stats on`.
 - Telemetry requires `jq`. If `jq` is missing, hooks exit without logging.
 - Check permissions on `~/.claude/auto-route.log`.
+
+### The Agent-tool subagent list shows more entries after installing
+- This is not the model picker (`/model`) — it's the list of `subagent_type` values for the Agent tool, and it always includes every agent shipped by every enabled plugin, on top of Claude Code's own built-ins (`general-purpose`, `Explore`, `Plan`, `statusline-setup`, `claude`).
+- `auto-route` ships 5 agents (`effort-low`, `effort-medium`, `effort-high`, `effort-xhigh`, `effort-max`), so the total list grows by 5 once the plugin is enabled — e.g. from ~5 built-ins to ~10+.
+- All 5 use `model: inherit`; none of them register a new model. No entries are added to `/model`.
+- There is currently no per-agent visibility setting to hide these from the list while keeping the plugin functional — disable/uninstall the plugin, or delete unwanted `agents/effort-*.md` files from the installed copy, are the only ways to shrink the list, and both remove that agent's routing tier too.
 
 ---
 
