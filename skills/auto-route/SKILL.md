@@ -39,6 +39,13 @@ Fallback if plugin agents missing: use `subagent_type: general-purpose` with `mo
 **Orthogonal Examples**: typo or lookup = `haiku` + `effort-low`; mechanical rename across many files = `sonnet` + `effort-low`; small subtle race condition = `sonnet` + `effort-xhigh`.
 *Unsure on an axis: choose higher value on that axis only.*
 
+### Split (only when it saves tokens)
+Splitting costs a fixed handoff overhead per sub-task, so only split when that overhead is paid back by *not* running every part at the same expensive rate. Split only when both hold:
+- 3+ independent concerns (disjoint files, or distinct review dimensions/plan steps) exist in the task, AND
+- scoring them separately would spread across 2+ effort or model levels (i.e. today's single route would overpay for the easy parts).
+Otherwise route as one block — do not split a uniform or small task just because it has multiple files.
+When splitting: score and route each part independently per the Rubric, run disjoint parts in parallel (per Rules below), then merge results yourself in one pass — never a second full-effort review of the merged output.
+
 ### Explicit override
 A task can pin its own effort level instead of the phase's scored range: prefix it with the
 level, `low:` / `medium:` / `high:` / `xhigh:` / `max:` (e.g. `high: plan the auth refactor`).
