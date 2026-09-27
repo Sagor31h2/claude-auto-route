@@ -332,6 +332,14 @@ Work is partitioned into 5 discrete phases to ensure proper safety boundaries:
 | **Debug** | No | `sonnet` + `high` to `opus` + `xhigh` | Isolates intermittent bugs and deadlocks. Requires establishing root cause before proposing fixes. |
 | **Review** | Yes | `sonnet` + `medium` to `opus` + `high` | Audits code after risky or multi-file plans. Reports critical defects, correctness bugs, and security risks only. |
 
+> [!TIP]
+> **Explicit Override**: pin a task's effort level instead of letting it score against the phase
+> range above by prefixing it with the level: `low:` / `medium:` / `high:` / `xhigh:` / `max:`
+> (e.g. `high: plan the auth refactor`). Works for every phase, and for any named skill that takes
+> its own level argument (e.g. `code-review`) — the pinned level is passed straight through as
+> that skill's argument. Pin the model too with `<model>+<level>:` (e.g. `opus+xhigh: ...`). An
+> explicit pin always wins over the scored range or a skill's own default/last-used level.
+
 ### Adaptive Retries & Escalation
 
 - **Retry Budget**: At most **one retry** per task.

@@ -39,6 +39,16 @@ Fallback if plugin agents missing: use `subagent_type: general-purpose` with `mo
 **Orthogonal Examples**: typo or lookup = `haiku` + `effort-low`; mechanical rename across many files = `sonnet` + `effort-low`; small subtle race condition = `sonnet` + `effort-xhigh`.
 *Unsure on an axis: choose higher value on that axis only.*
 
+### Explicit override
+A task can pin its own effort level instead of the phase's scored range: prefix it with the
+level, `low:` / `medium:` / `high:` / `xhigh:` / `max:` (e.g. `high: plan the auth refactor`).
+Applies to every phase (Plan, Research, Implement, Debug, Review) and to any named skill that
+takes its own level/effort argument (e.g. `code-review`, which accepts low/medium/high/xhigh/max)
+- pass the pinned level straight through as that skill's argument instead of guessing one. Model
+still scores normally unless also pinned, `<model>+<level>:` (e.g. `opus+xhigh: ...`). An explicit
+user-given level always wins over the phase's scored range or a skill's own default/last-used
+level.
+
 ### Handoff
 Subagents lack session history. Format:
 ```
@@ -50,7 +60,8 @@ Done when: <concrete check or deliverable>
 For Plan, Research, and Review, prefix prompt with: `Read-only: do not modify files.`
 
 ### Rules
-- Announce route first: `Route: <model> + <effort> (<reason>)`.
+- Announce route first: `Route: <model> + <effort> (<reason>)`. If the level was pinned by the
+  user rather than scored, say so: `Route: <model> + <effort> (explicit user pin)`.
 - Run independent steps targeting disjoint files concurrently in parallel.
 - Relay agent results concisely.
 - Retry: max 1 retry for capability failures only. Escalate failed axis by 1 level (effort up to xhigh, model up to opus; opus+max only after opus+xhigh). Never retry permissions, missing files, or tool/environment errors; report blocker directly.
