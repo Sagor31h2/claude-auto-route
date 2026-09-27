@@ -340,6 +340,16 @@ Work is partitioned into 5 discrete phases to ensure proper safety boundaries:
 > that skill's argument. Pin the model too with `<model>+<level>:` (e.g. `opus+xhigh: ...`). An
 > explicit pin always wins over the scored range or a skill's own default/last-used level.
 
+> [!TIP]
+> **Split (only when it saves tokens)**: a heterogeneous task can be broken into independent
+> sub-tasks routed at different model/effort levels instead of one flat rate for everything.
+> Splitting only pays off when 3+ independent concerns exist (disjoint files, review dimensions,
+> plan steps) **and** scoring them separately would spread across 2+ effort or model levels —
+> otherwise the per-sub-task handoff overhead costs more than it saves, so a uniform or small task
+> stays a single route. When it does split, each part is scored and routed independently, disjoint
+> parts run in parallel, and results are merged in one pass (no second full-effort review of the
+> merged output).
+
 ### Adaptive Retries & Escalation
 
 - **Retry Budget**: At most **one retry** per task.
