@@ -16,7 +16,7 @@ graders:
   - name: announces-route
     type: regex
     target: trace
-    pattern: 'Route:\W*(haiku|sonnet)\W*\+\W*(effort-)?(low|medium)'
+    pattern: 'Route:\W*(haiku|sonnet)\W*\+\W*(auto-route:)?(effort-)?(low|medium)'
     flags: i
   - name: no-fable
     type: tool_used

@@ -1,0 +1,32 @@
+schema_version: "1.0"
+name: trivial-no-tests
+description: A one-line constant fix with no tests stays cheap-first (haiku, or sonnet + low/medium), not opus, with Route-meta phase=implement tests=n.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/auto-route:auto-route Fix the bug in pages.py: page_count(total, per_page) is off by one and returns 3 for total=10, per_page=5; it should return 2 for 10 and 3 for 11. Change the one wrong line. There are no tests in this repo."
+  max_turns: 4
+  timeout_seconds: 150
+  allowed_tools: [Skill]
+graders:
+  - name: agent-call-cheap-implement-no-tests
+    type: tool_used
+    tool: Agent
+    input_match: '^(?=[\s\S]*"model"\s*:\s*"(haiku|sonnet)")(?=[\s\S]*auto-route:effort-(low|medium))(?=[\s\S]*Route-meta:[^\n]*phase=implement)(?=[\s\S]*Route-meta:[^\n]*tests=n)'
+  - name: announces-route
+    type: regex
+    target: trace
+    pattern: 'Route:\W*(haiku|sonnet)\W*\+\W*(auto-route:)?(effort-)?(low|medium)'
+    flags: i
+  - name: no-opus
+    type: tool_used
+    tool: Agent
+    input_match: '"model"\s*:\s*"opus"'
+    min: 0
+    max: 0
+  - name: no-fable
+    type: tool_used
+    tool: Agent
+    input_match: '"model"\s*:\s*"fable"'
+    min: 0
+    max: 0

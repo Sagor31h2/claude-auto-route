@@ -49,6 +49,10 @@ assert "model alias" "$model" "sonnet"
 assert "effort marked inline" "$effort" "inline"
 assert "tokens summed from usage" "$tokens" "35"
 
+assert "inline row meta: phase inline, rest null" "$(jq -c '[.phase,.risk,.files,.tests,.retry,.escalated_from]' "$log")" '["inline",null,null,null,null,null]'
+
+assert "inline reason captured" "$(jq -r .reason "$log")" "pure chat question"
+
 # 2. Tool-use turn (no "Route: inline" text) -> must be ignored
 transcript_tool="$WORK/tool.jsonl"
 cat > "$transcript_tool" <<'EOF'
@@ -72,9 +76,20 @@ assert "delegated-route turn not double-logged as inline" "$lines3" "1"
 # 4. stats.sh renders the inline route alongside delegated ones
 stats_out=$(bash "$STATS")
 case "$stats_out" in
-  *"sonnet + inline"*"1 runs"*"35 tokens"*) echo "PASS: stats.sh shows inline route" ;;
+  *"inline"*"1 turns"*"median 35 tokens (context size, not cost)"*) echo "PASS: stats.sh shows inline route" ;;
   *) echo "FAIL: stats.sh did not show inline route (got: $stats_out)"; fail=1 ;;
 esac
+
+# reason: absent -> null, long -> capped at 80; stats shows top reasons
+for r in "(a long reason $(printf 'x%.0s' $(seq 100)))" ""; do
+  t="$WORK/r.jsonl"
+  jq -nc --arg x "Route: inline $r" '{type:"assistant",message:{id:"m",model:"claude-sonnet-5",content:[{type:"text",text:$x}],usage:{input_tokens:1,output_tokens:1}}}' > "$t"
+  payload "$t" | bash "$HOOK"
+  assert "reason row logged" "$(jq -r '.reason | length' <<<"$(tail -n 1 "$log")")" "$([ -n "$r" ] && echo 80 || echo 0)"
+done
+assert "reason absent -> null" "$(tail -n 1 "$log" | jq -c .reason)" "null"
+payload "$transcript_inline" | bash "$HOOK"
+case "$(bash "$STATS")" in *"top reasons: pure chat question (2), a long reason"*) echo "PASS: stats top reasons" ;; *) echo "FAIL: stats top reasons"; fail=1 ;; esac
 
 # 5. flag absent -> hook exits before logging, log file not (re)created
 WORK2=$(mktemp -d)

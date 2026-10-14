@@ -16,4 +16,4 @@ graders:
   - name: explains-merge-vs-rebase
     type: llm
     focus: last_message
-    criteria: "The response answers directly (no route announcement, no subagent) and correctly explains that merge preserves history with a merge commit while rebase replays commits onto a new base for linear history, including a note on not rebasing shared branches or when to use each."
+    criteria: "The response answers directly (a leading `Route: inline (...)` line is expected and fine; no subagent) and correctly explains that merge preserves history with a merge commit while rebase replays commits onto a new base for linear history, including a note on not rebasing shared branches or when to use each."

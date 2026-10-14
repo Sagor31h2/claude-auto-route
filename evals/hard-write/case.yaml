@@ -1,0 +1,26 @@
+schema_version: "1.0"
+name: hard-write
+description: A concurrency/locking change with no tests routes to opus with high or xhigh effort, with Route-meta phase=implement.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/auto-route:auto-route Implement per-account locking in bank.py so transfer() is safe under concurrent calls and cannot deadlock when two transfers go in opposite directions. There are no tests in this repo."
+  max_turns: 4
+  timeout_seconds: 600
+  allowed_tools: [Skill]
+graders:
+  - name: agent-call-opus-high-implement
+    type: tool_used
+    tool: Agent
+    input_match: '^(?=[\s\S]*"model"\s*:\s*"opus")(?=[\s\S]*auto-route:effort-(high|xhigh))(?=[\s\S]*Route-meta:[^\n]*phase=implement)'
+  - name: announces-route
+    type: regex
+    target: trace
+    pattern: 'Route:\W*opus\W*\+\W*(auto-route:)?(effort-)?x?high'
+    flags: i
+  - name: no-fable
+    type: tool_used
+    tool: Agent
+    input_match: '"model"\s*:\s*"fable"'
+    min: 0
+    max: 0

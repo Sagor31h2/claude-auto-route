@@ -17,6 +17,8 @@ line=$(jq -cs '
   | if ($text | test("(^|\n)Route: inline")) then
       ($m.message.model // null) as $rm
       | ($m.message.usage) as $u
+      # reason from "Route: inline (<reason>)", capped at 80 chars; null if absent/unparseable
+      | ([$text | capture("(^|\n)Route: inline \\((?<r>[^)\n]+)\\)").r | .[:80]] | first // null) as $reason
       | {
           ts: (now | todate),
           model: (if $rm == null then null
@@ -26,11 +28,13 @@ line=$(jq -cs '
                   elif ($rm | test("fable")) then "fable"
                   else null end),
           effort: "inline",
+          phase: "inline", risk: null, files: null, tests: null, retry: null, escalated_from: null,
           resolved_model: $rm,
           tokens: (if $u == null then 0
                    else $u.input_tokens + $u.output_tokens
                         + ($u.cache_creation_input_tokens // 0)
                         + ($u.cache_read_input_tokens // 0) end),
+          reason: $reason,
           duration_ms: 0
         }
     else empty end

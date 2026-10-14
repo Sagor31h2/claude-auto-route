@@ -1,0 +1,32 @@
+schema_version: "1.0"
+name: nontrivial-no-tests
+description: A multi-file feature with an unclear approach and no tests, with no concurrency/auth/migration risk, raises effort first (sonnet + high), not opus, with Route-meta phase=implement tests=n.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/auto-route:auto-route Implement config-driven retry and logging across this small script project: fetcher.py, parser.py, and store.py should each retry failed operations and log attempts, with the retry count and log level read from config.json. Pick a clean approach and wire it through all three modules. There are no tests in this repo."
+  max_turns: 4
+  timeout_seconds: 150
+  allowed_tools: [Skill]
+graders:
+  - name: agent-call-sonnet-high-no-tests
+    type: tool_used
+    tool: Agent
+    input_match: '^(?=[\s\S]*"model"\s*:\s*"sonnet")(?=[\s\S]*auto-route:effort-high)(?=[\s\S]*Route-meta:[^\n]*phase=implement)(?=[\s\S]*Route-meta:[^\n]*tests=n)'
+  - name: announces-route
+    type: regex
+    target: trace
+    pattern: 'Route:\W*sonnet\W*\+\W*(auto-route:)?(effort-)?high'
+    flags: i
+  - name: no-opus
+    type: tool_used
+    tool: Agent
+    input_match: '"model"\s*:\s*"opus"'
+    min: 0
+    max: 0
+  - name: no-fable
+    type: tool_used
+    tool: Agent
+    input_match: '"model"\s*:\s*"fable"'
+    min: 0
+    max: 0

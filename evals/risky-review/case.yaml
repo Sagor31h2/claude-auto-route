@@ -1,0 +1,32 @@
+schema_version: "1.0"
+name: risky-review
+description: A review of an auth/session-token diff with no tests routes to opus (or at least sonnet+high, never haiku/low), with Route-meta phase=review risk=high tests=n.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/auto-route:auto-route Review my uncommitted change to session.py, which rewrites session token validation and expiry handling. There are no tests in this repo."
+  max_turns: 4
+  timeout_seconds: 150
+  allowed_tools: [Skill]
+graders:
+  - name: agent-call-strong-review
+    type: tool_used
+    tool: Agent
+    input_match: '^(?=[\s\S]*"model"\s*:\s*"(sonnet|opus)")(?=[\s\S]*auto-route:effort-(high|xhigh))(?=[\s\S]*[Rr]ead-only)(?=[\s\S]*Route-meta:[^\n]*phase=review[^\n]*risk=high[^\n]*tests=n)'
+  - name: announces-route
+    type: regex
+    target: trace
+    pattern: 'Route:\W*(sonnet|opus)\W*\+\W*(auto-route:)?(effort-)?x?high'
+    flags: i
+  - name: no-haiku
+    type: tool_used
+    tool: Agent
+    input_match: '"model"\s*:\s*"haiku"'
+    min: 0
+    max: 0
+  - name: no-fable
+    type: tool_used
+    tool: Agent
+    input_match: '"model"\s*:\s*"fable"'
+    min: 0
+    max: 0

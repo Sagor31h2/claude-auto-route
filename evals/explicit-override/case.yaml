@@ -16,7 +16,7 @@ graders:
   - name: announces-explicit-pin
     type: regex
     target: trace
-    pattern: 'Route:\W*haiku\W*\+\W*(effort-)?high\W*\(.*explicit.*pin'
+    pattern: 'Route:\W*haiku\W*\+\W*(auto-route:)?(effort-)?high\W*\(.*explicit.*pin'
     flags: i
   - name: no-fable
     type: tool_used

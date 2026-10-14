@@ -6,7 +6,7 @@ context:
 execution:
   prompt: "/auto-route:auto-route Our worker pool in worker_pool.py deadlocks intermittently under load, maybe once a day. Find the cause and fix it."
   max_turns: 4
-  timeout_seconds: 150
+  timeout_seconds: 600
   allowed_tools: [Skill]
 graders:
   - name: agent-call-strong-high
@@ -16,7 +16,7 @@ graders:
   - name: announces-route
     type: regex
     target: trace
-    pattern: 'Route:\W*(sonnet|opus)\W*\+\W*(effort-)?x?high'
+    pattern: 'Route:\W*(sonnet|opus)\W*\+\W*(auto-route:)?(effort-)?x?high'
     flags: i
   - name: no-fable
     type: tool_used

@@ -6,7 +6,7 @@ context:
 execution:
   prompt: "/auto-route:auto-route Add JWT authentication to the app: a users table migration, login and refresh endpoints in the API, and a login page in the frontend."
   max_turns: 6
-  timeout_seconds: 150
+  timeout_seconds: 600
   allowed_tools: [Skill]
 graders:
   - name: planner-call-opus-high-readonly
@@ -16,7 +16,7 @@ graders:
   - name: announces-route
     type: regex
     target: trace
-    pattern: 'Route:\W*opus\W*\+\W*(effort-)?x?high'
+    pattern: 'Route:\W*opus\W*\+\W*(auto-route:)?(effort-)?x?high'
     flags: i
   - name: no-fable
     type: tool_used

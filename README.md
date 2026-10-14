@@ -192,7 +192,7 @@ Parallel Execution (auto-route):
 
 ```mermaid
 flowchart TD
-    Task["Complex Task / Feature Request"] --> Planner["Plan Phase (sonnet + medium to opus + xhigh) - Read-only"]
+    Task["Complex Task / Feature Request"] --> Planner["Plan Phase (scored route) - Read-only"]
     
     Planner --> PlanOutput["Decomposed Plan (3-5 Steps with File Targets & Route)"]
     
@@ -211,7 +211,7 @@ flowchart TD
     
     Aggregator --> SequentialStep["Step 4: Integration & DB Migration (src/db/*)<br/>sonnet + high"]
     
-    SequentialStep --> FinalReview["Review Phase (opus + high) - Read-only Verification"]
+    SequentialStep --> FinalReview["Review Phase (scored route) - Read-only Verification"]
     
     FinalReview --> FinalDone["Final Verified Deliverable"]
 ```
@@ -297,15 +297,15 @@ flowchart TD
 
 ### Dual-Axis Routing Rubric
 
-Tasks are evaluated on two orthogonal dimensions:
+Tasks are scored on signals (not task type) on two orthogonal axes. The default is a **cheap-first cascade**: when tests exist and risk is low/medium, the lowest viable tier is picked, and a capability failure escalates only the failed axis by one level (single retry). A trivial/small change with no tests stays cheap-first. It starts high only by axis: concurrency = `opus` + `xhigh`; security/auth = `opus` + `high` (`xhigh` only for subtle crypto/proofs); irreversible migration = `opus` + `high`; no tests AND non-trivial (3+ files, even if the approach is already chosen, or unclear approach) = raise effort first (`high`), model stays `sonnet` unless another risk signal applies. Unknown-cause debugging starts at `high` effort (model per rubric); known-location bugs follow cheap-first. When unsure on an axis, it tie-breaks to the cheaper tier. The router scores from the request and what it already knows and never explores the repo just to route (subagents explore); an unknown signal counts as the cheaper tier. A **Plan** step runs first only for 3+ files with high risk (auth, migrations, concurrency) or an approach unclear across modules. The announce line carries the bare effort level (`Route: sonnet + high (...)`), not the agent name.
 
-1. **Model Axis (Capability & Knowledge)**:
+1. **Model Axis (Capability & Knowledge)**, driven by risk surface (auth, crypto, concurrency, migrations), domain novelty, tests present, and prior failure:
    - **`haiku`**: Mechanical, well-specified, small scope (typos, lookups, regex changes, running commands).
    - **`sonnet`**: Standard engineering workhorse (features, localized bugs, unit tests, explanations).
    - **`opus`**: High judgment, broad architectural scope (subsystem design, multi-file migrations, security analysis, unfamiliar domains).
    - **Never `fable`**: Excluded due to high pricing without granular per-turn reasoning controls.
 
-2. **Effort Axis (Reasoning Depth)**:
+2. **Effort Axis (Reasoning Depth)**, driven by diff size, file count, fan-out, and trace depth:
    Claude Code configures effort via agent frontmatter. `auto-route` includes 5 pre-configured effort agents:
 
 | Effort Level | Agent Name | Ideal For |
@@ -322,23 +322,28 @@ Tasks are evaluated on two orthogonal dimensions:
 
 ### Phase Guidelines
 
-Work is partitioned into 5 discrete phases to ensure proper safety boundaries:
+Work is partitioned into 5 phases. A phase sets **behavior only** (read-only or not, handoff prefix, auto-review); it does not limit the route. Any phase may route `haiku`..`opus` and `low`..`xhigh`, scored per task by the rubric above:
 
-| Phase | Read-Only? | Typical Route Range | Purpose & Guidelines |
-|---|:---:|---|---|
-| **Plan** | Yes | `sonnet` + `medium` to `opus` + `xhigh` | Produces 3–5 coarse, actionable steps with What, Target Files, Dependencies, Route, and Done When. |
-| **Research** | Yes | `haiku` + `low` to `sonnet` + `medium` | Finds definitions, inspects call hierarchies, verifies library APIs. Reports concrete `file:line` locations without edits. |
-| **Implement** | No | Rubric-selected (full range: any `model` + `effort`, scored per task) | Modifies files. Exactly one plan step per delegation. |
-| **Debug** | No | `sonnet` + `high` to `opus` + `xhigh` | Isolates intermittent bugs and deadlocks. Requires establishing root cause before proposing fixes. |
-| **Review** | Yes | `sonnet` + `medium` to `opus` + `high` | Audits code after risky or multi-file plans. Reports critical defects, correctness bugs, and security risks only. |
+| Phase | Read-Only? | Purpose & Guidelines |
+|---|:---:|---|
+| **Plan** | Yes | Produces 3–5 coarse, actionable steps with What, Target Files, Dependencies, Route, and Done When. |
+| **Research** | Yes | Finds definitions, inspects call hierarchies, verifies library APIs. Reports concrete `file:line` locations without edits. |
+| **Implement** | No | Modifies files. Exactly one plan step per delegation. |
+| **Debug** | No | Isolates intermittent bugs and deadlocks. Requires establishing root cause before proposing fixes. |
+| **Review** | Yes | Audits code after risky or multi-file plans. Reports critical defects, correctness bugs, and security risks only. |
+
+Every delegation prompt starts with a metadata line, which the stats hook logs:
+
+```text
+Route-meta: phase=<plan|research|implement|debug|review> risk=<low|med|high> files=<n> tests=<y|n> retry=<0|1> escalated_from=<model+effort|none>
+```
 
 > [!TIP]
-> **Explicit Override**: pin a task's effort level instead of letting it score against the phase
-> range above by prefixing it with the level: `low:` / `medium:` / `high:` / `xhigh:` / `max:`
+> **Explicit Override**: pin a task's effort level instead of letting it score by prefixing it with the level: `low:` / `medium:` / `high:` / `xhigh:` / `max:`
 > (e.g. `high: plan the auth refactor`). Works for every phase, and for any named skill that takes
 > its own level argument (e.g. `code-review`) — the pinned level is passed straight through as
 > that skill's argument. Pin the model too with `<model>+<level>:` (e.g. `opus+xhigh: ...`). An
-> explicit pin always wins over the scored range or a skill's own default/last-used level.
+> explicit pin always wins over the scored level or a skill's own default/last-used level.
 
 > [!TIP]
 > **Split (only when it saves tokens)**: a heterogeneous task can be broken into independent
@@ -353,7 +358,7 @@ Work is partitioned into 5 discrete phases to ensure proper safety boundaries:
 ### Adaptive Retries & Escalation
 
 - **Retry Budget**: At most **one retry** per task.
-- **Capability Failures Only**: Triggered when a subagent produces an incomplete or uncertain solution.
+- **Capability Failures Only**: Defined as: tests fail, the Done-when check is unmet, or the subagent reports it could not complete.
 - **Single-Axis Escalation**:
   - If reasoning fell short: Step up effort (`low` $\rightarrow$ `medium` $\rightarrow$ `high` $\rightarrow$ `xhigh`).
   - If capability fell short: Step up model (`haiku` $\rightarrow$ `sonnet` $\rightarrow$ `opus`).
@@ -408,17 +413,29 @@ Stats logging is **off by default**, **100% offline**, and purely local — noth
 Then run `/auto-route:auto-route stats` to inspect your **actual measured token consumption and runtimes**. Once enabled, the plugin logs real usage from subagent transcripts into `~/.claude/auto-route.log` after each run and displays a summary table. Inline turns (`Route: inline (...)`) are logged too — via a `Stop` hook — so the table shows the full picture, not just delegated subagent runs:
 
 ```text
-haiku + low      18 runs   24190 tokens    4s avg
-sonnet + low     12 runs   18400 tokens    9s avg
-sonnet + medium  24 runs   64280 tokens   18s avg
-sonnet + high     8 runs   32150 tokens   42s avg
-opus + high       3 runs   19800 tokens   65s avg
-opus + xhigh      1 runs   12400 tokens  110s avg
-sonnet + inline  31 runs   41200 tokens    0s avg
+haiku + low      18 runs   24190 tokens   median 4s p90 7s   out 6100   ~$0.04 (approx)
+sonnet + low     12 runs   18400 tokens   median 8s p90 15s   out 4200   ~$0.08 (approx)
+sonnet + medium  24 runs   64280 tokens   median 17s p90 35s   out 15800   ~$0.31 (approx)
+sonnet + high     8 runs   32150 tokens   median 40s p90 90s   out 9900   ~$0.17 (approx)
+opus + high       3 runs   19800 tokens   median 65s p90 80s   out 5200   ~$0.15 (approx)
+inline           31 turns  median 41200 tokens (context size, not cost); top reasons: pure chat question (14), trivial lookup (9), tiny edit (4)
+escalation: 4/50 delegated runs with retry (8%)
+escalated away: sonnet+low 3/12 (25%)
+mismatch: high-risk on low/medium effort 2, low-risk on high/xhigh effort 5
+slow (>10min): sonnet+high 1/8 (13%)
+debug: sonnet+high 5
+implement: haiku+low 10, sonnet+medium 20
+plan: opus+high 3
+research: haiku+low 8, sonnet+low 4
+meta: 50/65 delegated runs carry Route-meta
 ```
 
+Each delegated row is one JSON line in `~/.claude/auto-route.log`: `ts`, `model`, `effort`, `resolved_model`, `tokens` (final-turn context size), `out_tokens` (summed output), `new_tokens` (summed input + cache creation), `cache_read_tokens` (summed cache reads), `duration_ms`, plus the parsed `Route-meta` fields `phase`, `risk`, `files` (number), `tests` (`y`/`n`), `retry` (bool), and `escalated_from` (string or null). Values are matched case-insensitively and leading whitespace before `Route-meta:` is tolerated; `escalated_from` must be `none` or `model+effort`. Missing or malformed meta logs these as `null`. Inline rows use `effort: "inline"`, `phase: "inline"`, null for the other meta fields, and a `reason` (text of `Route: inline (<reason>)`, capped at 80 chars, or null).
+
 > [!NOTE]
-> Inline entries always show `0s avg` and count only the final turn's token usage — duration and per-turn token isolation aren't tracked for inline routes, only that they happened and roughly how much they cost.
+> Inline rows record the whole-session context size (including cache reads) of the final turn, not cost, so they are excluded from the per-route token totals and shown on their own line. Durations are median and p90 per route. The escalation and per-phase route lines count only rows that carry `Route-meta` (older log rows without it are still shown in the table); the `meta:` line shows how many delegated rows carry it, so a low ratio means the model forgot the line.
+>
+> **Outcome signals**: `escalated away` is, per route, the share of its runs that needed a retry on a higher tier; a high percentage (above roughly 15-20%) means that cheap tier is taking tasks it shouldn't. `mismatch` flags high-risk tasks sent to low/medium effort and low-risk ones sent to high/xhigh. **Costs are approximate**: `~$` prices `new_tokens` at the model's input rate (cache creation is billed at the plain input rate, since the table has no cache-write rate, so the cache-write premium is not counted), `out_tokens` at its output rate, and `cache_read_tokens` at its cache-read rate from the table above; the rates in `stats.sh` go stale. Rows logged before `cache_read_tokens` existed are costed with cache reads as 0, and the estimate is then tagged `old rows lack cache reads`. Rows logged before `out_tokens`/`new_tokens` existed are left out of `out` and `~$`. `slow (>10min)` shows, per route, delegated runs that took over 10 minutes; it is omitted when there are none.
 
 ### Why Not Claude Fable?
 

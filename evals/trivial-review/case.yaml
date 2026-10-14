@@ -1,0 +1,32 @@
+schema_version: "1.0"
+name: trivial-review
+description: A review of a tiny low-risk diff with tests present routes cheap (haiku/sonnet + low/medium), never opus, with Route-meta phase=review.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/auto-route:auto-route Review my uncommitted change to greet.py (a one-line docstring and default-arg tweak). Tests in test_greet.py already cover it."
+  max_turns: 4
+  timeout_seconds: 150
+  allowed_tools: [Skill]
+graders:
+  - name: agent-call-cheap-review
+    type: tool_used
+    tool: Agent
+    input_match: '^(?=[\s\S]*"model"\s*:\s*"(haiku|sonnet)")(?=[\s\S]*auto-route:effort-(low|medium))(?=[\s\S]*[Rr]ead-only)(?=[\s\S]*Route-meta:[^\n]*phase=review)'
+  - name: announces-route
+    type: regex
+    target: trace
+    pattern: 'Route:\W*(haiku|sonnet)\W*\+\W*(auto-route:)?(effort-)?(low|medium)'
+    flags: i
+  - name: no-opus
+    type: tool_used
+    tool: Agent
+    input_match: '"model"\s*:\s*"opus"'
+    min: 0
+    max: 0
+  - name: no-fable
+    type: tool_used
+    tool: Agent
+    input_match: '"model"\s*:\s*"fable"'
+    min: 0
+    max: 0
