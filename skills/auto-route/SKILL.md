@@ -5,12 +5,12 @@ description: Pick model and effort per task and delegate to matching subagent; t
 
 ## Commands
 Argument: `$ARGUMENTS`. Only the user toggles routing; never do it autonomously.
-For `on|off|status|stats|stats on|stats off|reset`: run `bash <this skill's base directory>/manage.sh "$ARGUMENTS"` and relay its exact output.
+For `on|off|status|stats|stats since <YYYY-MM-DD>|stats on|stats off|reset` (`since` compares against the UTC `ts` of rows): run `bash <this skill's base directory>/manage.sh "$ARGUMENTS"` and relay its exact output.
 
 ## Route
 Route $ARGUMENTS, or current user prompt if empty.
 Score from the request and what you already know; never explore the repo just to route (subagents explore). Unknown signal = cheaper tier, escalate on failure.
-Pure chat questions needing no tools or tiny tasks with immediate context: execute inline, starting with `Route: inline (<reason>)`.
+Pure chat questions needing no tools or tiny tasks with immediate context: execute inline, starting with `Route: inline (<reason>)`. Pure relay/ack turns that only pass on a subagent's result also announce first: `Route: inline (relay)`.
 
 ### Phases
 Pick phase first; it sets behavior only, never a model/effort range. Any phase may route `haiku`..`opus`, `low`..`xhigh` per the Rubric:
@@ -65,17 +65,17 @@ user-given level always wins over the scored level or a skill's own default/last
 ### Handoff
 Subagents lack session history. Format:
 ```
-Route-meta: phase=<plan|research|implement|debug|review> risk=<low|med|high> files=<n> tests=<y|n> retry=<0|1> escalated_from=<model+effort|none>
+Route-meta: phase=<plan|research|implement|debug|review> risk=<low|med|high> files=<integer> tests=<y|n> retry=<0|1> escalated_from=<model+effort|none>
 Goal: <one sentence>
 Context: <file paths, relevant snippets, decisions made, prior plan step outputs>
 Constraints: <what not to touch, style rules>
 Done when: <concrete check or deliverable>
 ```
-`Route-meta` must be the first line (logged for routing stats). For Plan, Research, and Review, add `Read-only: do not modify files.` right after it.
+`Route-meta` must be the first line (logged for routing stats). `files` is a plain integer (no `+`, `many`, or `unknown`); estimate if unsure. For Plan, Research, and Review, add `Read-only: do not modify files.` right after it.
 
 ### Rules
 - Announce route first: `Route: <model> + <effort> (<reason>)`, `<effort>` = bare level (`low|medium|high|xhigh|max`), not the agent name. If the level was pinned by the
   user rather than scored, say so: `Route: <model> + <effort> (explicit user pin)`.
 - Run independent steps targeting disjoint files concurrently in parallel.
 - Relay agent results concisely.
-- Retry: max 1 retry for capability failures only (tests fail, the Done-when check is unmet, or the subagent reports it could not complete), with the failure context in the prompt (`retry=1`, `escalated_from` = prior route). Escalate failed axis by 1 level (effort up to xhigh, model up to opus; opus+max only after opus+xhigh). Never retry permissions, missing files, or tool/environment errors; report blocker directly.
+- Retry: max 1 retry for capability failures only (tests fail, the Done-when check is unmet, or the subagent reports it could not complete), with the failure context in the prompt (`retry=1`, `escalated_from` = prior route). `retry=1` is mandatory on any re-delegation of the same goal; keep the `Goal:` line verbatim and put the failure context under `Context:`. Escalate failed axis by 1 level (effort up to xhigh, model up to opus; opus+max only after opus+xhigh). Never retry permissions, missing files, or tool/environment errors; report blocker directly.

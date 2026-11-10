@@ -64,6 +64,9 @@ assert "tokens = final turn total" "$tokens" "523"
 assert "out_tokens = deduped sum of output" "$(jq -r .out_tokens "$log")" "70"
 assert "new_tokens = deduped input + cache creation" "$(jq -r .new_tokens "$log")" "105"
 assert "cache_read_tokens = deduped sum of cache reads" "$(jq -r .cache_read_tokens "$log")" "500"
+assert "cache_creation_tokens logged separately" "$(jq -r .cache_creation_tokens "$log")" "100"
+assert "agent_id + session_id logged" "$(jq -r '"\(.agent_id) \(.session_id)"' "$log")" "fake1 s1"
+assert "plugin_version from plugin.json" "$(jq -r .plugin_version "$log")" "$(jq -r .version "$ROOT/.claude-plugin/plugin.json")"
 assert "duration_ms from first/last transcript timestamp" "$duration" "90000"
 
 # non-auto-route agent -> must be ignored (no new line)
@@ -75,7 +78,7 @@ assert "non-auto-route agent ignored" "$lines2" "1"
 stats_out=$(bash "$STATS")
 echo "$stats_out"
 case "$stats_out" in
-  *"sonnet + high"*"1 runs"*"523 tokens"*"median 90s p90 90s"*"out 70"*"~\$0.001 (approx)"*) echo "PASS: stats.sh output (out + approx cost)" ;;
+  *"sonnet + high"*"1 runs"*"523 tokens"*"median 90s p90 90s"*"out 70"*"~\$0.001 (approx)"*"1 of 1 runs priced"*) echo "PASS: stats.sh output (out + approx cost + priced count)" ;;
   *) echo "FAIL: stats.sh output did not match (got: $stats_out)"; fail=1 ;;
 esac
 
@@ -118,14 +121,59 @@ row=$(meta_row '"Goal: no meta line"')
 assert "meta missing -> nulls" "$(echo "$row" | jq -c "$meta_fields")" '[null,null,null,null,null,null]'
 assert "meta missing keeps other fields" "$(echo "$row" | jq -r '"\(.model) \(.effort)"')" "sonnet medium"
 row=$(meta_row '"Route-meta: phase=bogus risk=low files=x tests=y retry=0"')
-assert "meta malformed -> nulls" "$(echo "$row" | jq -c "$meta_fields")" '[null,null,null,null,null,null]'
+assert "meta malformed -> only bad fields null" "$(echo "$row" | jq -c "$meta_fields")" '[null,"low",null,"y",false,null]'
 
 row=$(meta_row '"  Route-meta: phase=Plan risk=Low files=1 tests=Y retry=0 escalated_from=none\nGoal: x"')
 assert "meta capitalized + leading space accepted" "$(echo "$row" | jq -c "$meta_fields")" '["plan","low",1,"y",false,null]'
 row=$(meta_row '"Route-meta: phase=plan risk=low files=1 tests=n retry=0 escalated_from=bogus"')
-assert "bad escalated_from -> nulls" "$(echo "$row" | jq -c "$meta_fields")" '[null,null,null,null,null,null]'
+assert "bad escalated_from -> only that field null" "$(echo "$row" | jq -c "$meta_fields")" '["plan","low",1,"n",false,null]'
 row=$(meta_row '"Route-meta: phase=plan risk=low files=7+ tests=n retry=0 escalated_from=none"')
-assert "files=7+ -> nulls" "$(echo "$row" | jq -c "$meta_fields")" '[null,null,null,null,null,null]'
+assert "files=7+ -> 7, other fields kept" "$(echo "$row" | jq -c "$meta_fields")" '["plan","low",7,"n",false,null]'
+for bad in unknown many n; do
+  row=$(meta_row "\"Route-meta: phase=debug risk=high files=$bad tests=y retry=1 escalated_from=none\"")
+  assert "files=$bad -> files null only" "$(echo "$row" | jq -c "$meta_fields")" '["debug","high",null,"y",true,null]'
+done
+
+# repeated SubagentStop for the same agent_id replaces the row (cumulative transcript), not a second row
+dup_tr="$WORK/dup.jsonl"
+jq -nc '{type:"user",timestamp:"2026-01-01T00:00:00.000Z",message:{role:"user",content:"Route-meta: phase=implement risk=low files=1 tests=y retry=0 escalated_from=none\nGoal: Dedupe Me"}}' > "$dup_tr"
+echo '{"type":"assistant","timestamp":"2026-01-01T00:00:10.000Z","message":{"id":"d1","model":"claude-sonnet-5","usage":{"input_tokens":1,"output_tokens":10}}}' >> "$dup_tr"
+dup_hook() { jq -nc --arg t "$dup_tr" '{agent_id:"dupagent", agent_type:"auto-route:effort-low", agent_transcript_path:$t, session_id:"s9"}' | bash "$HOOK"; }
+dup_hook
+echo '{"type":"assistant","timestamp":"2026-01-01T00:00:20.000Z","message":{"id":"d2","model":"claude-sonnet-5","usage":{"input_tokens":1,"output_tokens":30}}}' >> "$dup_tr"
+dup_hook
+assert "every firing appends a row (no rewrite)" "$(grep -cF '"agent_id":"dupagent"' "$log")" "2"
+# stats dedupes at read time: one row per agent_id counted, the latest one (out 40) wins
+dup_stats=$(bash "$STATS")
+case "$dup_stats" in *"sonnet + low"*"1 runs"*"out 40"*) echo "PASS: stats counts one row per agent_id, keeps the latest" ;; *) echo "FAIL: stats dedupe (got: $dup_stats)"; fail=1 ;; esac
+assert "other rows survive the dedupe" "$(grep -c '"agent_id":"fake1"' "$log")" "1"
+assert "goal_hash set, case-insensitive" "$(grep -F dupagent "$log" | tail -n 1 | jq -r '.goal_hash != null')" "true"
+h1=$(grep -F dupagent "$log" | tail -n 1 | jq -r .goal_hash)
+# same goal with different case, inner spacing and trailing space/CR -> same goal_hash
+jq -nc '{type:"user",timestamp:"2026-01-01T00:00:00.000Z",message:{role:"user",content:"Route-meta: phase=implement risk=low files=1 tests=y retry=0 escalated_from=none\nGoal: dedupe  me \r\nContext: x"}}' > "$WORK/dup2.jsonl"
+echo '{"type":"assistant","timestamp":"2026-01-01T00:00:10.000Z","message":{"id":"d1","model":"claude-sonnet-5","usage":{"input_tokens":1,"output_tokens":10}}}' >> "$WORK/dup2.jsonl"
+jq -nc --arg t "$WORK/dup2.jsonl" '{agent_id:"dupagent2", agent_type:"auto-route:effort-low", agent_transcript_path:$t}' | bash "$HOOK"
+assert "same goal text (case/spacing/trailing CR) -> same goal_hash" "$(grep -F dupagent2 "$log" | jq -r .goal_hash)" "$h1"
+
+# concurrent hooks lose no rows and leave a pre-set 600 mode alone
+chmod 600 "$log"
+before=$(wc -l < "$log" | tr -d ' ')
+for i in $(seq 20); do
+  jq -nc --arg t "$dup_tr" --arg a "par$i" '{agent_id:$a, agent_type:"auto-route:effort-low", agent_transcript_path:$t}' | bash "$HOOK" &
+done
+wait
+assert "20 parallel hooks: all rows present" "$(( $(wc -l < "$log" | tr -d ' ') - before ))" "20"
+assert "20 parallel hooks: distinct agent_ids" "$(grep -o '"agent_id":"par[0-9]*"' "$log" | sort -u | wc -l | tr -d ' ')" "20"
+assert "log mode stays 600" "$(stat -c %a "$log" 2>/dev/null || stat -f %Lp "$log")" "600"
+
+# early exits after the flag check are logged to auto-route.err; hooks stay silent and exit 0
+err="$CLAUDE_CONFIG_DIR/auto-route.err"
+rc=0; out=$(jq -nc '{agent_type:"auto-route:effort-low", agent_transcript_path:"/nonexistent/x.jsonl"}' | bash "$HOOK" 2>&1) || rc=$?
+assert "unreadable transcript: silent, exit 0" "$rc:$out" "0:"
+assert "unreadable transcript logged to .err" "$(grep -c 'log-route: transcript unreadable' "$err")" "1"
+printf 'not json' | bash "$HOOK"
+assert "bad hook input logged to .err" "$(wc -l < "$err" | tr -d ' ')" "2"
+case "$(bash "$STATS")" in *"hook errors: 2"*) echo "PASS: stats shows error count" ;; *) echo "FAIL: stats error count"; fail=1 ;; esac
 
 # stats on old rows (no new fields) + new rows: inline excluded from tokens, escalation + phases shown
 log_old="$CLAUDE_CONFIG_DIR/auto-route.log"
@@ -164,19 +212,64 @@ cat > "$log_old" <<'EOFL'
 {"ts":"t","model":"sonnet","effort":"low","phase":"implement","risk":"high","files":1,"tests":"y","retry":false,"escalated_from":null,"tokens":1,"duration_ms":1000}
 {"ts":"t","model":"sonnet","effort":"low","phase":"implement","risk":"med","files":1,"tests":"y","retry":false,"escalated_from":null,"tokens":1,"duration_ms":1000}
 {"ts":"t","model":"sonnet","effort":"medium","phase":"debug","risk":"med","files":1,"tests":"y","retry":true,"escalated_from":"sonnet+low","tokens":1,"duration_ms":1000}
-{"ts":"t","model":"opus","effort":"high","phase":"debug","risk":"low","files":1,"tests":"y","retry":false,"escalated_from":null,"tokens":1,"duration_ms":1000,"out_tokens":1000000,"new_tokens":1000000}
+{"ts":"t","model":"opus","effort":"high","phase":"debug","risk":"low","files":1,"tests":"y","retry":false,"escalated_from":null,"tokens":1,"duration_ms":1000,"out_tokens":1000000,"new_tokens":1000000,"cache_read_tokens":0,"cache_creation_tokens":0}
 EOFL
 o=$(bash "$STATS"); echo "$o"
 case "$o" in *"escalated away: sonnet+low 1/2 (50%)"*) echo "PASS: escalated away" ;; *) echo "FAIL: escalated away"; fail=1 ;; esac
 case "$o" in *"mismatch: high-risk on low/medium effort 1, low-risk on high/xhigh effort 1"*) echo "PASS: mismatch" ;; *) echo "FAIL: mismatch"; fail=1 ;; esac
-case "$o" in *"opus + high"*"out 1000000"*'~$24 (approx, old rows lack cache reads)'*) echo "PASS: cost estimate" ;; *) echo "FAIL: cost estimate"; fail=1 ;; esac
-case "$(grep '^sonnet + low' <<<"$o")" in *out*|*approx*) echo "FAIL: out/cost shown for rows lacking fields"; fail=1 ;; *) echo "PASS: no out/cost without fields" ;; esac
+case "$o" in *"opus + high"*"out 1000000"*'~$24 (approx)'*'$24/run OVER $2/run'*"1 of 1 runs priced"*) echo "PASS: cost estimate + cost/run + over-2-dollar flag" ;; *) echo "FAIL: cost estimate"; fail=1 ;; esac
+case "$(grep '^sonnet + low' <<<"$o")" in *out*|*approx*) echo "FAIL: out/cost shown for rows lacking fields"; fail=1 ;; *"0 of 2 runs priced"*) echo "PASS: no out/cost without fields, 0 of 2 priced" ;; *) echo "FAIL: priced count for unpriced rows"; fail=1 ;; esac
 printf '%s\n' '{"ts":"t","model":"sonnet","effort":"low","phase":"plan","risk":"low","retry":false,"escalated_from":null,"tokens":1,"duration_ms":1000}' > "$log_old"
 case "$(bash "$STATS")" in *"escalated away"*|*mismatch*) echo "FAIL: lines shown without data"; fail=1 ;; *) echo "PASS: escalated/mismatch omitted when none" ;; esac
 
 # cache reads costed: sonnet 1M cache reads at $0.20 = $0.2; all rows carry it -> plain (approx)
-printf '%s\n' '{"ts":"t","model":"sonnet","effort":"low","tokens":1,"duration_ms":1000,"out_tokens":0,"new_tokens":0,"cache_read_tokens":1000000}' > "$log_old"
+printf '%s\n' '{"ts":"t","model":"sonnet","effort":"low","tokens":1,"duration_ms":1000,"out_tokens":0,"new_tokens":0,"cache_read_tokens":1000000,"cache_creation_tokens":0}' > "$log_old"
 case "$(bash "$STATS")" in *'~$0.2 (approx)'*) echo "PASS: cache read cost" ;; *) echo "FAIL: cache read cost"; fail=1 ;; esac
+# cache writes priced at 1.25x input (sonnet $2 -> $2.5/MTok); old rows lacking the split are flagged
+printf '%s\n' '{"ts":"t","model":"sonnet","effort":"low","tokens":1,"duration_ms":1000,"out_tokens":0,"new_tokens":1000000,"cache_read_tokens":0,"cache_creation_tokens":1000000}' > "$log_old"
+case "$(bash "$STATS")" in *'~$2.5 (approx)'*'$2.5/run OVER'*) echo "PASS: cache write 1.25x" ;; *) echo "FAIL: cache write 1.25x"; fail=1 ;; esac
+printf '%s\n' '{"ts":"t","model":"sonnet","effort":"low","tokens":1,"duration_ms":1000,"out_tokens":0,"new_tokens":1000000,"cache_read_tokens":0}' > "$log_old"
+case "$(bash "$STATS")" in *'~$2 (approx, old rows lack cache write split)'*) echo "PASS: old row cache write flag" ;; *) echo "FAIL: old row cache write flag"; fail=1 ;; esac
+# rows lacking cache_read are unpriced (not counted as 0): 1 of 2 priced
+cat > "$log_old" <<'EOFL'
+{"ts":"t","model":"sonnet","effort":"low","tokens":1,"duration_ms":1000,"out_tokens":0,"new_tokens":1000000,"cache_read_tokens":0,"cache_creation_tokens":0}
+{"ts":"t","model":"sonnet","effort":"low","tokens":1,"duration_ms":1000,"out_tokens":0,"new_tokens":1000000}
+EOFL
+case "$(bash "$STATS")" in *'~$2 (approx)'*"1 of 2 runs priced"*) echo "PASS: rows lacking cache_read unpriced" ;; *) echo "FAIL: unpriced cache_read rows"; fail=1 ;; esac
+# rates keyed by resolved_model first (opus-5-5 $20/MTok out), family alias as fallback
+cat > "$log_old" <<'EOFL'
+{"ts":"t","model":"sonnet","effort":"low","resolved_model":"claude-opus-5-5","tokens":1,"duration_ms":1000,"out_tokens":1000000,"new_tokens":0,"cache_read_tokens":0,"cache_creation_tokens":0}
+{"ts":"t","model":"opus","effort":"high","resolved_model":"claude-unknown-9","tokens":1,"duration_ms":1000,"out_tokens":1000000,"new_tokens":0,"cache_read_tokens":0,"cache_creation_tokens":0}
+EOFL
+o=$(bash "$STATS")
+case "$(grep '^sonnet + low' <<<"$o")" in *'~$20 (approx)'*) echo "PASS: rate by resolved_model" ;; *) echo "FAIL: rate by resolved_model"; fail=1 ;; esac
+case "$(grep '^opus + high' <<<"$o")" in *'~$20 (approx)'*) echo "PASS: rate family fallback" ;; *) echo "FAIL: rate family fallback"; fail=1 ;; esac
+
+# mismatch: tests=n with 3+ files is excluded from low-risk-on-high-effort; 2 files still counts
+cat > "$log_old" <<'EOFL'
+{"ts":"t","model":"sonnet","effort":"high","phase":"implement","risk":"low","files":3,"tests":"n","retry":false,"tokens":1,"duration_ms":1}
+{"ts":"t","model":"sonnet","effort":"high","phase":"implement","risk":"low","files":2,"tests":"n","retry":false,"tokens":1,"duration_ms":1}
+EOFL
+case "$(bash "$STATS")" in *"low-risk on high/xhigh effort 1"*) echo "PASS: mismatch excludes tests=n files>=3" ;; *) echo "FAIL: mismatch exclusion"; fail=1 ;; esac
+
+# inferred retry: same goal_hash re-delegated at a higher tier within 30 min counts; lower tier / later than 30 min do not
+cat > "$log_old" <<'EOFL'
+{"ts":"2026-01-01T00:00:00Z","model":"sonnet","effort":"low","goal_hash":"111","retry":false,"tokens":1,"duration_ms":1}
+{"ts":"2026-01-01T00:10:00Z","model":"sonnet","effort":"high","goal_hash":"111","retry":false,"tokens":1,"duration_ms":1}
+{"ts":"2026-01-01T00:20:00Z","model":"sonnet","effort":"low","goal_hash":"111","retry":false,"tokens":1,"duration_ms":1}
+{"ts":"2026-01-01T00:00:00Z","model":"haiku","effort":"low","goal_hash":"222","retry":false,"tokens":1,"duration_ms":1}
+{"ts":"2026-01-01T01:00:00Z","model":"opus","effort":"high","goal_hash":"222","retry":false,"tokens":1,"duration_ms":1}
+EOFL
+case "$(bash "$STATS")" in *"escalation: 0/5"*"inferred retry: 1 "*) echo "PASS: inferred retry" ;; *) echo "FAIL: inferred retry"; fail=1 ;; esac
+
+# since YYYY-MM-DD filters by ts; bad date -> usage
+cat > "$log_old" <<'EOFL'
+{"ts":"2026-01-01T00:00:00Z","model":"sonnet","effort":"low","tokens":1,"duration_ms":1}
+{"ts":"2026-03-01T00:00:00Z","model":"sonnet","effort":"high","tokens":1,"duration_ms":1}
+EOFL
+o=$(bash "$STATS" since 2026-02-01)
+case "$o" in *"sonnet + high"*) case "$o" in *"sonnet + low"*) echo "FAIL: since kept old row"; fail=1 ;; *) echo "PASS: since filters by ts" ;; esac ;; *) echo "FAIL: since dropped new row"; fail=1 ;; esac
+case "$(bash "$STATS" since nope)" in Usage:*) echo "PASS: since rejects bad date" ;; *) echo "FAIL: since bad date"; fail=1 ;; esac
 
 # slow line: 1 of 2 sonnet+high runs over 600s; omitted when none
 cat > "$log_old" <<'EOFL'
@@ -187,6 +280,52 @@ EOFL
 case "$(bash "$STATS")" in *"slow (>10min): sonnet+high 1/2 (50%)"*) echo "PASS: slow line" ;; *) echo "FAIL: slow line"; fail=1 ;; esac
 printf '%s\n' '{"ts":"t","model":"sonnet","effort":"high","tokens":1,"duration_ms":600000}' > "$log_old"
 case "$(bash "$STATS")" in *slow*) echo "FAIL: slow shown when none"; fail=1 ;; *) echo "PASS: slow omitted when none" ;; esac
+
+# since: a non-string ts is compared via tostring, not silently swallowed
+printf '%s\n' '{"ts":20260301,"model":"sonnet","effort":"high","tokens":1,"duration_ms":1}' > "$log_old"
+case "$(bash "$STATS" since 2026-02-01)" in *"sonnet + high"*) echo "PASS: since handles non-string ts" ;; *) echo "FAIL: since non-string ts"; fail=1 ;; esac
+
+# per-field meta: retry=0 with a bogus phase is not counted in the phase line or the meta count
+cat > "$log_old" <<'EOFL'
+{"ts":"t","model":"sonnet","effort":"low","phase":null,"risk":"low","retry":false,"tokens":1,"duration_ms":1}
+{"ts":"t","model":"sonnet","effort":"low","phase":"plan","risk":"low","retry":false,"tokens":1,"duration_ms":1}
+EOFL
+o=$(bash "$STATS")
+case "$o" in *"null:"*) echo "FAIL: null phase line shown"; fail=1 ;; *"escalation: 0/2"*"plan: sonnet+low 1"*"meta: 1/2 delegated"*) echo "PASS: bogus-phase row excluded from phase line + meta count" ;; *) echo "FAIL: bogus phase (got: $o)"; fail=1 ;; esac
+
+# inferred retry pairs only same-phase rows
+cat > "$log_old" <<'EOFL'
+{"ts":"2026-01-01T00:00:00Z","model":"haiku","effort":"low","phase":"research","goal_hash":"1","tokens":1,"duration_ms":1}
+{"ts":"2026-01-01T00:05:00Z","model":"sonnet","effort":"medium","phase":"implement","goal_hash":"1","tokens":1,"duration_ms":1}
+EOFL
+case "$(bash "$STATS")" in *"inferred retry: 0 "*) echo "PASS: cross-phase pair not an inferred retry" ;; *) echo "FAIL: cross-phase inferred retry"; fail=1 ;; esac
+cat > "$log_old" <<'EOFL'
+{"ts":"2026-01-01T00:00:00Z","model":"haiku","effort":"low","phase":"implement","goal_hash":"1","tokens":1,"duration_ms":1}
+{"ts":"2026-01-01T00:05:00Z","model":"sonnet","effort":"medium","phase":"implement","goal_hash":"1","tokens":1,"duration_ms":1}
+EOFL
+case "$(bash "$STATS")" in *"inferred retry: 1 "*) echo "PASS: same-phase higher-tier pair counted" ;; *) echo "FAIL: same-phase inferred retry"; fail=1 ;; esac
+
+# non-string ts with a goal_hash must not abort jq (other lines still print)
+cat > "$log_old" <<'EOFL'
+{"ts":20260301,"model":"sonnet","effort":"low","phase":"plan","retry":false,"goal_hash":"1","tokens":1,"duration_ms":1}
+{"ts":"2026-03-01T00:00:00Z","model":"sonnet","effort":"high","phase":"plan","retry":false,"goal_hash":"1","tokens":1,"duration_ms":1}
+EOFL
+case "$(bash "$STATS")" in *"meta: 2/2"*) echo "PASS: non-string ts with goal_hash keeps other lines" ;; *) echo "FAIL: non-string ts aborted jq"; fail=1 ;; esac
+
+# stats since filters auto-route.err lines by date
+printf '%s\n%s\n' '2026-01-01T00:00:00Z old error' '2026-06-01T00:00:00Z new error' > "$err"
+case "$(bash "$STATS" since 2026-03-01)" in *"hook errors: 1 "*) echo "PASS: since filters .err lines" ;; *) echo "FAIL: since .err filter"; fail=1 ;; esac
+rm -f "$err"
+
+# jq missing is logged once, not on every run (only when not already the last .err line)
+rm -f "$err"
+mkdir "$WORK/nojq"; for t in date grep; do ln -s "$(command -v $t)" "$WORK/nojq/$t"; done
+INLINE_HOOK="$ROOT/hooks/log-inline.sh"
+for _ in 1 2 3; do
+  jq -nc '{agent_type:"auto-route:effort-low"}' | PATH="$WORK/nojq" "$(command -v bash)" "$HOOK"
+  echo '{}' | PATH="$WORK/nojq" "$(command -v bash)" "$INLINE_HOOK"
+done
+assert "jq missing logged once across both hooks" "$(grep -c 'jq missing' "$err")" "1"
 
 # flag absent -> hook exits before logging, log file not (re)created
 WORK2=$(mktemp -d)

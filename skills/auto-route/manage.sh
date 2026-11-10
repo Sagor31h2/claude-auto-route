@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Helper for auto-route admin commands: on, off, status, stats, reset.
+# Helper for auto-route admin commands: on, off, status, stats [since YYYY-MM-DD], reset.
 set -euo pipefail
 DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -31,14 +31,16 @@ case "$cmd" in
     echo "Auto-route stats: OFF"
     ;;
   reset)
-    rm -f "$DIR/auto-route.log"
+    rm -f "$DIR/auto-route.log" "$DIR/auto-route.err"
     echo "Auto-route stats reset."
     ;;
-  stats)
+  stats|"stats since"|"stats since "*)
     if [ ! -f "$DIR/auto-route.stats" ]; then
       echo "Stats logging is off. Enable with /auto-route:auto-route stats on."
     fi
-    bash "$SCRIPT_DIR/stats.sh"
+    # "stats since YYYY-MM-DD" passes "since YYYY-MM-DD" on; stats.sh validates the date
+    set -f
+    bash "$SCRIPT_DIR/stats.sh" ${cmd#stats}
     ;;
   *)
     echo "Unknown command: $ARG"

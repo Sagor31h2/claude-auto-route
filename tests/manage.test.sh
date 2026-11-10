@@ -67,11 +67,24 @@ assert_eq "stats off returns Auto-route stats: OFF" "$out" "Auto-route stats: OF
 out=$(bash "$MANAGE" "stats")
 assert_contains "stats command warns when off" "$out" "Stats logging is off. Enable with /auto-route:auto-route stats on."
 
-# 9. Reset log file
+# 8b. "stats since <date>" is passed through to stats.sh (filters by ts; bad date -> usage)
+mkdir -p "$CLAUDE_CONFIG_DIR"
+printf '%s\n' '{"ts":"2026-01-01T00:00:00Z","model":"sonnet","effort":"low","tokens":1,"duration_ms":1}' '{"ts":"2026-03-01T00:00:00Z","model":"sonnet","effort":"high","tokens":1,"duration_ms":1}' > "$CLAUDE_CONFIG_DIR/auto-route.log"
+out=$(bash "$MANAGE" "stats since 2026-02-01")
+assert_contains "stats since keeps newer row" "$out" "sonnet + high"
+[[ "$out" != *"sonnet + low"* ]] && echo "PASS: stats since drops older row" || { echo "FAIL: stats since kept older row"; fail=1; }
+out=$(bash "$MANAGE" "stats since bogus" 2>&1) || true
+assert_contains "stats since bad date -> usage" "$out" "Usage: stats.sh"
+out=$(bash "$MANAGE" "stats since" 2>&1) || true
+assert_contains "bare stats since -> usage hint" "$out" "Usage: stats.sh"
+
+# 9. Reset log file (and the hook error file)
 echo '{"test":1}' > "$CLAUDE_CONFIG_DIR/auto-route.log"
+echo '2026-01-01T00:00:00Z reason' > "$CLAUDE_CONFIG_DIR/auto-route.err"
 out=$(bash "$MANAGE" "reset")
 assert_eq "reset returns Auto-route stats reset." "$out" "Auto-route stats reset."
 [ ! -f "$CLAUDE_CONFIG_DIR/auto-route.log" ] && echo "PASS: auto-route.log removed" || { echo "FAIL: log file still exists"; fail=1; }
+[ ! -f "$CLAUDE_CONFIG_DIR/auto-route.err" ] && echo "PASS: auto-route.err removed" || { echo "FAIL: err file still exists"; fail=1; }
 
 # 10. Case insensitivity and whitespace trimming
 out=$(bash "$MANAGE" "  ON  ")

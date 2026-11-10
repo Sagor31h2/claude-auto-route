@@ -52,6 +52,11 @@ assert "tokens summed from usage" "$tokens" "35"
 assert "inline row meta: phase inline, rest null" "$(jq -c '[.phase,.risk,.files,.tests,.retry,.escalated_from]' "$log")" '["inline",null,null,null,null,null]'
 
 assert "inline reason captured" "$(jq -r .reason "$log")" "pure chat question"
+assert "plugin_version + session_id + msg_id logged" "$(jq -r '"\(.plugin_version) \(.session_id) \(.msg_id)"' "$log")" "$(jq -r .version "$ROOT/.claude-plugin/plugin.json") s1 msg_X"
+
+# repeated Stop on the same final message (same msg_id) is not logged twice
+payload "$transcript_inline" | bash "$HOOK"
+assert "duplicate Stop on same message skipped" "$(wc -l < "$log" | tr -d ' ')" "1"
 
 # 2. Tool-use turn (no "Route: inline" text) -> must be ignored
 transcript_tool="$WORK/tool.jsonl"
@@ -81,15 +86,49 @@ case "$stats_out" in
 esac
 
 # reason: absent -> null, long -> capped at 80; stats shows top reasons
+n=0
 for r in "(a long reason $(printf 'x%.0s' $(seq 100)))" ""; do
-  t="$WORK/r.jsonl"
-  jq -nc --arg x "Route: inline $r" '{type:"assistant",message:{id:"m",model:"claude-sonnet-5",content:[{type:"text",text:$x}],usage:{input_tokens:1,output_tokens:1}}}' > "$t"
+  t="$WORK/r.jsonl"; n=$((n+1))
+  jq -nc --arg x "Route: inline $r" --arg id "m$n" '{type:"assistant",message:{id:$id,model:"claude-sonnet-5",content:[{type:"text",text:$x}],usage:{input_tokens:1,output_tokens:1}}}' > "$t"
   payload "$t" | bash "$HOOK"
   assert "reason row logged" "$(jq -r '.reason | length' <<<"$(tail -n 1 "$log")")" "$([ -n "$r" ] && echo 80 || echo 0)"
 done
 assert "reason absent -> null" "$(tail -n 1 "$log" | jq -c .reason)" "null"
-payload "$transcript_inline" | bash "$HOOK"
-case "$(bash "$STATS")" in *"top reasons: pure chat question (2), a long reason"*) echo "PASS: stats top reasons" ;; *) echo "FAIL: stats top reasons"; fail=1 ;; esac
+sed 's/msg_X/msg_X2/' "$transcript_inline" > "$WORK/inline2.jsonl"
+payload "$WORK/inline2.jsonl" | bash "$HOOK"
+case "$(bash "$STATS")" in *"top reasons: pure chat question (2), a long reason"*"no reason: 1"*) echo "PASS: stats top reasons + no-reason count" ;; *) echo "FAIL: stats top reasons"; fail=1 ;; esac
+
+# relay/ack/done reasons collapse into one "relay/ack" bucket
+for r in "relaying subagent result" "status ack" "done, nothing to add" "stack trace question"; do
+  n=$((n+1)); t="$WORK/r.jsonl"
+  jq -nc --arg x "Route: inline ($r)" --arg id "m$n" '{type:"assistant",message:{id:$id,model:"claude-sonnet-5",content:[{type:"text",text:$x}],usage:{input_tokens:1,output_tokens:1}}}' > "$t"
+  payload "$t" | bash "$HOOK"
+done
+case "$(bash "$STATS")" in *"top reasons: relay/ack (3), pure chat question (2)"*) echo "PASS: stats relay/ack bucket" ;; *) echo "FAIL: stats relay/ack bucket"; fail=1 ;; esac
+
+# unreadable transcript after the flag check -> one line in auto-route.err, silent, exit 0
+rc=0; out=$(payload "$WORK/missing.jsonl" | bash "$HOOK" 2>&1) || rc=$?
+assert "unreadable transcript: silent, exit 0" "$rc:$out" "0:"
+assert "unreadable transcript logged to .err" "$(grep -c 'log-inline: transcript unreadable' "$CLAUDE_CONFIG_DIR/auto-route.err")" "1"
+
+# unparseable hook input -> .err line; jq missing logged once in a row
+err="$CLAUDE_CONFIG_DIR/auto-route.err"
+printf 'not json' | bash "$HOOK"
+assert "bad hook input logged to .err" "$(grep -c 'log-inline: unparseable hook input' "$err")" "1"
+rm -f "$err"
+mkdir "$WORK/nojq"; for t in date grep; do ln -s "$(command -v $t)" "$WORK/nojq/$t"; done
+ROUTE_HOOK="$ROOT/hooks/log-route.sh"
+for _ in 1 2 3; do
+  payload "$transcript_inline" | PATH="$WORK/nojq" "$(command -v bash)" "$HOOK"
+  echo '{}' | PATH="$WORK/nojq" "$(command -v bash)" "$ROUTE_HOOK"
+done
+assert "jq missing logged once across both hooks" "$(grep -c 'jq missing' "$err")" "1"
+
+# "status" alone is not relay/ack
+t="$WORK/r.jsonl"
+jq -nc '{type:"assistant",message:{id:"mst",model:"claude-sonnet-5",content:[{type:"text",text:"Route: inline (git status check)"}],usage:{input_tokens:1,output_tokens:1}}}' > "$t"
+: > "$log"; payload "$t" | bash "$HOOK"
+case "$(bash "$STATS")" in *"top reasons: git status check (1)"*) echo "PASS: status alone not in relay/ack" ;; *) echo "FAIL: status bucketed as relay/ack"; fail=1 ;; esac
 
 # 5. flag absent -> hook exits before logging, log file not (re)created
 WORK2=$(mktemp -d)
