@@ -252,6 +252,13 @@ cat > "$log_old" <<'EOFL'
 EOFL
 case "$(bash "$STATS")" in *"low-risk on high/xhigh effort 1"*) echo "PASS: mismatch excludes tests=n files>=3" ;; *) echo "FAIL: mismatch exclusion"; fail=1 ;; esac
 
+# mismatch: tests=y with 7+ files is also excluded; 6 files still counts
+cat > "$log_old" <<'EOFL'
+{"ts":"t","model":"sonnet","effort":"high","phase":"implement","risk":"low","files":7,"tests":"y","retry":false,"tokens":1,"duration_ms":1}
+{"ts":"t","model":"sonnet","effort":"high","phase":"implement","risk":"low","files":6,"tests":"y","retry":false,"tokens":1,"duration_ms":1}
+EOFL
+case "$(bash "$STATS")" in *"low-risk on high/xhigh effort 1"*) echo "PASS: mismatch excludes tests=y files>=7" ;; *) echo "FAIL: mismatch tests=y exclusion"; fail=1 ;; esac
+
 # inferred retry: same goal_hash re-delegated at a higher tier within 30 min counts; lower tier / later than 30 min do not
 cat > "$log_old" <<'EOFL'
 {"ts":"2026-01-01T00:00:00Z","model":"sonnet","effort":"low","goal_hash":"111","retry":false,"tokens":1,"duration_ms":1}
@@ -280,6 +287,24 @@ EOFL
 case "$(bash "$STATS")" in *"slow (>10min): sonnet+high 1/2 (50%)"*) echo "PASS: slow line" ;; *) echo "FAIL: slow line"; fail=1 ;; esac
 printf '%s\n' '{"ts":"t","model":"sonnet","effort":"high","tokens":1,"duration_ms":600000}' > "$log_old"
 case "$(bash "$STATS")" in *slow*) echo "FAIL: slow shown when none"; fail=1 ;; *) echo "PASS: slow omitted when none" ;; esac
+
+# slow, no retry: 3 slow runs; one declared retry, one later re-delegated at a higher tier -> only the third counts
+cat > "$log_old" <<'EOFL'
+{"ts":"2026-01-01T00:00:00Z","model":"sonnet","effort":"low","phase":"implement","goal_hash":"1","retry":false,"tokens":1,"duration_ms":700000}
+{"ts":"2026-01-01T00:20:00Z","model":"sonnet","effort":"high","phase":"implement","goal_hash":"1","retry":true,"tokens":1,"duration_ms":700000}
+{"ts":"2026-01-01T02:00:00Z","model":"haiku","effort":"high","phase":"implement","goal_hash":"2","retry":false,"tokens":1,"duration_ms":700000}
+EOFL
+case "$(bash "$STATS")" in *"slow, no retry: 1 of 3 slow runs"*) echo "PASS: slow, no retry" ;; *) echo "FAIL: slow, no retry"; fail=1 ;; esac
+
+# cost by phase: priced rows only, rows without a phase skipped, omitted when no priced meta row
+cat > "$log_old" <<'EOFL'
+{"ts":"t","model":"opus","effort":"high","phase":"plan","resolved_model":"claude-opus-5-5","tokens":1,"duration_ms":1,"out_tokens":1000000,"new_tokens":0,"cache_read_tokens":0}
+{"ts":"t","model":"sonnet","effort":"high","phase":"implement","resolved_model":"claude-sonnet-5","tokens":1,"duration_ms":1,"out_tokens":1000000,"new_tokens":0,"cache_read_tokens":0}
+{"ts":"t","model":"sonnet","effort":"high","resolved_model":"claude-sonnet-5","tokens":1,"duration_ms":1,"out_tokens":1000000,"new_tokens":0,"cache_read_tokens":0}
+EOFL
+case "$(bash "$STATS")" in *'cost by phase: plan $20, implement $10'*) echo "PASS: cost by phase" ;; *) echo "FAIL: cost by phase"; fail=1 ;; esac
+printf '%s\n' '{"ts":"t","model":"sonnet","effort":"high","phase":"implement","tokens":1,"duration_ms":1}' > "$log_old"
+case "$(bash "$STATS")" in *"cost by phase"*) echo "FAIL: cost by phase shown when none"; fail=1 ;; *) echo "PASS: cost by phase omitted when none" ;; esac
 
 # since: a non-string ts is compared via tostring, not silently swallowed
 printf '%s\n' '{"ts":20260301,"model":"sonnet","effort":"high","tokens":1,"duration_ms":1}' > "$log_old"

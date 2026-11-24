@@ -1,0 +1,32 @@
+schema_version: "1.0"
+name: large-implement-no-haiku
+description: A fully specified change across 10+ files with tests present routes to sonnet at medium or high effort, never haiku, with Route-meta phase=implement.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/auto-route:auto-route In every module under pkg/ (mod01.py through mod10.py), rename the function process(x) to handle(x) and update its call sites and docstrings. The tests in tests/ already cover every module; keep them passing."
+  max_turns: 4
+  timeout_seconds: 150
+  allowed_tools: [Skill]
+graders:
+  - name: agent-call-sonnet-implement
+    type: tool_used
+    tool: Agent
+    input_match: '^(?=[\s\S]*"model"\s*:\s*"sonnet")(?=[\s\S]*auto-route:effort-(medium|high))(?=[\s\S]*Route-meta:[^\n]*phase=implement)'
+  - name: announces-route
+    type: regex
+    target: trace
+    pattern: 'Route:\W*sonnet\W*\+\W*(auto-route:)?(effort-)?(medium|high)'
+    flags: i
+  - name: no-haiku
+    type: tool_used
+    tool: Agent
+    input_match: '"model"\s*:\s*"haiku"'
+    min: 0
+    max: 0
+  - name: no-fable
+    type: tool_used
+    tool: Agent
+    input_match: '"model"\s*:\s*"fable"'
+    min: 0
+    max: 0

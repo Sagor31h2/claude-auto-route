@@ -84,9 +84,22 @@ out=$(jq -n -R -r --arg since "$since" '
          | (map(select((.duration_ms // 0) > slow_ms)) | length) as $e
          | select($e > 0) | "\($k) \($e)/\($n) (\($e * 100 / $n | round)%)")
        | if length > 0 then "slow (>\(slow_ms / 60000 | round)min): " + join(", ") else empty end),
-      # untested multi-file work (tests n, 3+ files) is a legitimate reason for high effort on low risk, so it is not a mismatch
+      # slow rows with no declared retry that were not later retried (same inferred-retry test as above, applied to the earlier row)
+      ($d | map(select((.duration_ms // 0) > slow_ms))) as $sl
+      | (if ($sl | length) > 0 then
+          ($sl | map(select(.retry != true) | . as $v
+            | select(($g | map(select(.goal_hash != null and .goal_hash == $v.goal_hash and .phase == $v.phase
+                                     and ((.ts | secs) - ($v.ts // "" | secs)) > 0 and ((.ts | secs) - ($v.ts // "" | secs)) <= 1800
+                                     and higher(. | tier; $v | tier))) | length) == 0))
+           | length) as $nr
+          | "slow, no retry: \($nr) of \($sl | length) slow runs"
+        else empty end),
+      # per-phase cost from the same cost helper as the per-route line; rows without a phase or price are skipped
+      ($p | map(select(priced)) | group_by(.phase) | map({k: .[0].phase, c: (map(cost) | add)}) | sort_by(-.c)
+       | if length > 0 then "cost by phase: " + (map("\(.k) $\(.c | r3)") | join(", ")) else empty end),
+      # untested multi-file work (tests n, 3+ files) or tested 7+ file work is a legitimate reason for high effort on low risk, so it is not a mismatch
       ($d | map(select(.risk == "high" and (.effort | IN("low","medium")))) | length) as $hl
-      | ($d | map(select(.risk == "low" and (.effort | IN("high","xhigh")) and ((.tests == "n" and (.files // 0) >= 3) | not))) | length) as $lh
+      | ($d | map(select(.risk == "low" and (.effort | IN("high","xhigh")) and ((.tests == "n" and (.files // 0) >= 3) or (.tests == "y" and (.files // 0) >= 7) | not))) | length) as $lh
       | (if $hl + $lh > 0 then "mismatch: high-risk on low/medium effort \($hl), low-risk on high/xhigh effort \($lh)" else empty end),
       (if ($p | length) > 0 then "meta: \($p | length)/\($d | length) delegated runs carry Route-meta" else empty end)
   end' "$f" 2>/dev/null)

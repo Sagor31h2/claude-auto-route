@@ -1,6 +1,6 @@
 # auto-route
 
-[![Version](https://img.shields.io/badge/version-1.18.0-blue.svg)](.claude-plugin/plugin.json)
+[![Version](https://img.shields.io/badge/version-1.19.0-blue.svg)](.claude-plugin/plugin.json)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Claude Code](https://img.shields.io/badge/Claude%20Code-Plugin-purple.svg)](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview)
 [![Tests](https://img.shields.io/badge/tests-passing-brightgreen.svg)](tests/)
@@ -48,7 +48,7 @@ Pin an effort level with a prefix: `low:` / `medium:` / `high:` / `xhigh:` / `ma
 
 Tasks are scored on signals (risk surface, scope, tests present, prior failure), not task type. The default is **cheap-first**: with tests present and low/medium risk, the lowest viable tier is picked.
 
-- **Model**: `haiku` (mechanical, well-specified), `sonnet` (standard engineering), `opus` (high judgment, broad architecture). `fable` is never used.
+- **Model**: `haiku` (mechanical, well-specified; capped at `low`/`medium` effort and 4 files or fewer), `sonnet` (standard engineering; `implement`/`debug` touching 8+ files never goes below it), `opus` (high judgment, broad architecture). `fable` is never used.
 - **Effort**: `low`, `medium`, `high`, `xhigh` via the plugin agents `auto-route:effort-low|medium|high|xhigh`; `auto-route:effort-max` is the single retry after `opus + xhigh` falls short.
 - **Escalation**: at most one retry, on capability failures only (tests fail, done-when unmet, subagent could not complete), stepping up only the failed axis (effort or model). Environment/tool errors are reported, not retried.
 - **Split**: a task with 3+ independent concerns that would score across 2+ effort or model levels is split, routed per part, run in parallel where files are disjoint, and merged in one pass. Otherwise it stays one route.
@@ -92,7 +92,7 @@ escalated away: sonnet+low 3/12 (25%)
 hook errors: 1 logged in ~/.claude/auto-route.err
 ```
 
-Each route row shows runs, tokens (final-turn context), median/p90 duration, output tokens, and approximate cost from list prices (rates live in `skills/auto-route/stats.sh`). Inline rows show context size, not cost. `escalation` is the share of delegated runs that were retries, `escalated away` is the per-route share that needed a retry on a higher tier (above roughly 15-20% that tier is taking tasks it shouldn't), and per-phase lines summarize routes used. Other lines: `inferred retry` (same goal re-delegated at a higher tier in the same phase within 30 min, even without `retry=1`), `mismatch` (high-risk on low/medium effort, or low-risk on high/xhigh, ignoring the no-tests, 3+ files rule), `slow (>10min)`, and `meta:` (how many delegated rows carry Route-meta; use `stats since <date>` to skip older rows). Routes over $2/run are flagged `OVER $2/run`, and `N of M runs priced` shows how many rows had enough token data to cost.
+Each route row shows runs, tokens (final-turn context), median/p90 duration, output tokens, and approximate cost from list prices (rates live in `skills/auto-route/stats.sh`). Inline rows show context size, not cost. `escalation` is the share of delegated runs that were retries, `escalated away` is the per-route share that needed a retry on a higher tier (above roughly 15-20% that tier is taking tasks it shouldn't), and per-phase lines summarize routes used. Other lines: `inferred retry` (same goal re-delegated at a higher tier in the same phase within 30 min, even without `retry=1`), `mismatch` (high-risk on low/medium effort, or low-risk on high/xhigh, ignoring the no-tests, 3+ files rule and the tests-present, 7+ files rule), `slow (>10min)`, `slow, no retry` (slow runs that neither declared a retry nor were re-delegated at a higher tier, i.e. slow but passing), `cost by phase` (estimated cost per phase over priced rows, highest first), and `meta:` (how many delegated rows carry Route-meta; use `stats since <date>` to skip older rows). Routes over $2/run are flagged `OVER $2/run`, and `N of M runs priced` shows how many rows had enough token data to cost.
 
 Log fields (one JSON line per row):
 
